@@ -22,6 +22,6 @@ The program can also register SpoutCam and binaries are included in the reposito
 
 ### Credit
 
-Original capture source filter authored by Vivek, downloaded from (http://tmhare.mvps.org/downloads/vcam.zip).
-Alterations for Skype compatibility - John MacCormick, 2012. (https://github.com/johnmaccormick/MultiCam).
-VS2017 Project by Valentin Schmidt (https://github.com/59de44955ebd). This project and the 64 bit version of SpoutCam would not have been possible without his work.
+Original capture source filter authored by Vivek, downloaded from [The March Hare](http://tmhare.mvps.org/downloads/vcam.zip).  
+Alterations for Skype compatibility by [John MacCormick](https://github.com/johnmaccormick/MultiCam).  
+VS2017 Project by [Valentin Schmidt](https://github.com/59de44955ebd). This project and the 64 bit version of SpoutCam would not have been possible without his work.
