@@ -1,0 +1,31 @@
+#include "version.h"
+
+1 VERSIONINFO
+
+FILEVERSION		_VER_MAJORVERSION, _VER_MINORVERSION, _VER_BUGFIXVERSION, _VER_BUILDNUM
+PRODUCTVERSION	_VER_MAJORVERSION, _VER_MINORVERSION, _VER_BUGFIXVERSION, _VER_BUILDNUM
+
+FILEOS 0x40004
+FILETYPE 0x2
+{
+	BLOCK "StringFileInfo"
+	{
+		BLOCK "040904b0"
+		{
+			VALUE "CompanyName", "Leading Edge Pty Ltd\0"
+			VALUE "FileDescription", "SpoutCam virtual webcam\0"
+			VALUE "FileVersion", "2.001\0"
+			VALUE "InternalName", "SpoutCam.ax"
+			VALUE "LegalCopyright", "Copyright \251 Lynn Jarvis 2020\0"
+			VALUE "OriginalFilename", "SpoutCam.ax\0"
+			VALUE "ProductName", "SpoutCam\0"
+			VALUE "ProductVersion", "2.001\0"
+		}
+	}
+
+	BLOCK "VarFileInfo"
+	{
+		VALUE "Translation", 0x0409 0x04B0
+	}
+}
+
