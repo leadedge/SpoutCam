@@ -721,7 +721,7 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 				HANDLE dxShareHandle;
 				DWORD dwFormat;
 				if (receiver.GetSenderInfo(g_SenderName, width, height, dxShareHandle, dwFormat)) {
-					receiver.SetupReceiver(width, height, true);
+					// receiver.SetupReceiver(width, height);
 					// Set the sender to the registry for SpoutCamSettings
 					WritePathToRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "sendername", g_SenderName);
 					// Write the sender path to the registry for SpoutPanel
@@ -731,7 +731,7 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 					return NOERROR; // no more for this frame
 				} // endif GetSenderInfo
 				else {
-					printf("Could not create receiver %s %dx%d (global %dx%d)\n", g_SenderName, width, height, g_Width, g_Height);
+					printf("Could not find sender %s\n", g_SenderName);
 					// TODO : what
 				}
 			} // end found active sender

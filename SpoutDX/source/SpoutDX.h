@@ -4,7 +4,7 @@
 
 			Sender and receiver for DirectX applications
 
-	Copyright (c) 2014-2019, Lynn Jarvis. All rights reserved.
+	Copyright (c) 2014-2020, Lynn Jarvis. All rights reserved.
 
 	Redistribution and use in source and binary forms, with or without modification, 
 	are permitted provided that the following conditions are met:
@@ -32,13 +32,13 @@
 #ifndef __spoutDX__
 #define __spoutDX__
 
-#include "SpoutCommon.h" // for dll build and utilities
-#include "SpoutSenderNames.h" // for sender creation and update
-#include "SpoutDirectX.h" // for creating DX11 textures
-#include "SpoutFrameCount.h" // for mutex lock and new frame signal
-#include "SpoutCopy.h" // for pixel copy
-#include "SpoutMemoryShare.h" // for memoryshare fallback support
-#include "SpoutUtils.h" // Registry utiities
+#include "..\source\SpoutCommon.h" // for dll build and utilities
+#include "..\source\SpoutSenderNames.h" // for sender creation and update
+#include "..\source\SpoutDirectX.h" // for creating DX11 textures
+#include "..\source\SpoutFrameCount.h" // for mutex lock and new frame signal
+#include "..\source\SpoutCopy.h" // for pixel copy
+#include "..\source\SpoutMemoryShare.h" // for memoryshare fallback support
+#include "..\source\SpoutUtils.h" // Registry utiities
 
 #include <direct.h> // for _getcwd
 #include <TlHelp32.h> // for PROCESSENTRY32
@@ -77,7 +77,6 @@ class SPOUT_DLLEXP spoutDX {
 	// RECEIVER
 	//
 
-	void SetupReceiver(unsigned int width, unsigned int height, bool bInvert = false);
 	// Set the sender name to connect to
 	void SetReceiverName(const char * SenderName);
 	// Receive a DX11 texture from a sender
@@ -89,7 +88,6 @@ class SPOUT_DLLEXP spoutDX {
 	// Receive pixels from sender shared memory (Spout memory mode must be selected)
 	bool ReceiveMemory(const char* sendername, unsigned char* pixels,
 		unsigned int width, unsigned int height, GLenum glFormat, bool bInvert);
-
 	// Close receiver and free resources
 	void ReleaseReceiver();
 	// Open the user sender selection dialog
@@ -137,6 +135,7 @@ class SPOUT_DLLEXP spoutDX {
 
 protected :
 
+	void SetupReceiver(unsigned int width, unsigned int height);
 	bool CreateDX11Texture(ID3D11Device* pd3dDevice, unsigned int width, unsigned int height, DXGI_FORMAT format, ID3D11Texture2D** ppTexture);
 	bool CreateDX11StagingTexture(ID3D11Device* pDevice, unsigned int width, unsigned int height, DXGI_FORMAT format, ID3D11Texture2D** pStagingTexture);
 	bool CheckStagingTexture(unsigned int width, unsigned int height);
@@ -162,8 +161,8 @@ protected :
 	unsigned int m_Width;
 	unsigned int m_Height;
 	bool bSpoutInitialized;
-	bool bSpoutConnected;
-	bool bSpoutUpdated;
+	bool m_bConnected;
+	bool m_bUpdate;
 	bool m_bInvert;
 	bool m_bUseActive;
 	bool bSpoutPanelOpened;

@@ -17,7 +17,7 @@
 //
 // ====================================================================================
 /*
-	Copyright (c) 2014-2019, Lynn Jarvis. All rights reserved.
+	Copyright (c) 2014-2020, Lynn Jarvis. All rights reserved.
 
 	Redistribution and use in source and binary forms, with or without modification, 
 	are permitted provided that the following conditions are met:
@@ -56,9 +56,9 @@ spoutDX::spoutDX()
 	m_dwFormat = 0;
 	m_Width = 0;
 	m_Height = 0;
-	bSpoutUpdated = false;
+	m_bUpdate = false;
 	bSpoutInitialized = false;
-	bSpoutConnected = false;
+	m_bConnected = false;
 	bSpoutPanelOpened = false;
 	bSpoutPanelActive = false;
 	m_bInvert = false;
@@ -257,11 +257,35 @@ long spoutDX::GetFrame()
 // RECEIVER
 //
 
+
+// Set the sender name to connect to
+void spoutDX::SetReceiverName(const char * SenderName)
+{
+	if (SenderName && SenderName[0]) {
+		strcpy_s(m_SenderNameSetup, 256, SenderName);
+		strcpy_s(m_SenderName, 256, SenderName);
+	}
+}
+
 // Receive a DX11 texture from a sender
 bool spoutDX::ReceiveTexture(ID3D11Device* pd3dDevice)
 {
-	// Set the initial width and height to globals
-	// width and height are returned from the sender
+	m_bUpdate = false;
+
+	// Initialization is recorded in this class for sender or receiver
+	// m_Width or m_Height are established when the receiver connects to a sender
+	if (!IsConnected()) {
+		SetupReceiver(m_Width, m_Height);
+		// Signal the application to update the receiving texture size
+		// Retrieved with a call to the IsUpdated function
+		m_bUpdate = true;
+		m_bConnected = true;
+		return true;
+	}
+
+	// Save sender name and dimensions to test for change
+	char name[256];
+	strcpy_s(name, 256, m_SenderName);
 	unsigned int width = m_Width;
 	unsigned int height = m_Height;
 
@@ -289,7 +313,7 @@ bool spoutDX::ReceiveTexture(ID3D11Device* pd3dDevice)
 		// Save the sender's width and height to check for changes
 		m_Width = width;
 		m_Height = height;
-
+		
 		// Set up if not initialized yet
 		if (!bSpoutInitialized) {
 			// Create a named sender mutex for access to the sender's shared texture
@@ -301,14 +325,14 @@ bool spoutDX::ReceiveTexture(ID3D11Device* pd3dDevice)
 			// The two textures must have compatible DXGI formats.
 			// Default shared texture format is DXGI_FORMAT_B8G8R8A8_UNORM.
 			// https://docs.microsoft.com/en-us/windows/desktop/api/d3d11/nf-d3d11-id3d11devicecontext-copyresource
-			if (m_pSenderTexture) 
+			if (m_pSenderTexture)
 				m_pSenderTexture->Release();
 			m_pSenderTexture = nullptr;
 			CreateDX11Texture(pd3dDevice, m_Width, m_Height, (DXGI_FORMAT)m_dwFormat, &m_pSenderTexture);
 			bSpoutInitialized = true;
 			// Tell the application that the sender has changed
 			// The update flag is reset when the receiving application calls IsUpdated()
-			bSpoutUpdated = true;
+			m_bUpdate = true;
 			// Return to update the receiving pixels
 			return true;
 		}
@@ -337,23 +361,30 @@ bool spoutDX::ReceiveTexture(ID3D11Device* pd3dDevice)
 			// Allow access to the shared texture
 			frame.AllowAccess();
 		}
-		bSpoutConnected = true;
+		m_bConnected = true;
 	} // sender exists
 	else {
 		// There is no sender or the connected sender closed.
 		ReleaseReceiver();
 		// The local texture pointer will be null.
 		// Let the application know.
-		bSpoutConnected = false;
+		m_bConnected = false;
 	}
 
-	return bSpoutConnected;
+	return m_bConnected;
 
 }
 
 // Receive pixels from a sender via DX11 staging texture
 bool spoutDX::ReceiveImage(unsigned char * pData)
 {
+	if (!IsConnected()) {
+		SetupReceiver(m_Width, m_Height);
+		m_bUpdate = true;
+		m_bConnected = true;
+		return true;
+	}
+
 	// Set the initial width and height to globals
 	// width and height are returned from the sender
 	unsigned int width = m_Width;
@@ -403,7 +434,7 @@ bool spoutDX::ReceiveImage(unsigned char * pData)
 
 			// Tell the application that the sender has changed
 			// The update flag is reset when the receiving application calls IsUpdated()
-			bSpoutUpdated = true;
+			m_bUpdate = true;
 
 			// Return to update the receiving pixels
 			return true;
@@ -436,23 +467,30 @@ bool spoutDX::ReceiveImage(unsigned char * pData)
 			// Allow access to the shared texture
 			frame.AllowAccess();
 		}
-		bSpoutConnected = true;
+		m_bConnected = true;
 	} // sender exists
 	else {
 		// There is no sender or the connected sender closed.
 		ReleaseReceiver();
 		// The local texture pointer will be null.
 		// Let the application know.
-		bSpoutConnected = false;
+		m_bConnected = false;
 	}
 
-	return bSpoutConnected;
+	return m_bConnected;
 
 }
 
 // Receive pixels from a sender via DX11 staging texture to an rgb buffer of variable size
 bool spoutDX::ReceiveRGBimage(unsigned char * pData, unsigned int sourceWidth, unsigned int sourceHeight, bool bInvert)
 {
+	if (!IsConnected()) {
+		SetupReceiver(m_Width, m_Height);
+		m_bUpdate = true;
+		m_bConnected = true;
+		return true;
+	}
+
 	// Set the initial width and height to globals
 	// width and height are returned from the sender
 	unsigned int width = m_Width;
@@ -500,7 +538,7 @@ bool spoutDX::ReceiveRGBimage(unsigned char * pData, unsigned int sourceWidth, u
 			bSpoutInitialized = true;
 			// Tell the application that the sender has changed
 			// The update flag is reset when the receiving application calls IsUpdated()
-			bSpoutUpdated = true;
+			m_bUpdate = true;
 			// Return to update the receiving pixels
 			return true;
 		}
@@ -531,17 +569,17 @@ bool spoutDX::ReceiveRGBimage(unsigned char * pData, unsigned int sourceWidth, u
 			// Allow access to the shared texture
 			frame.AllowAccess();
 		}
-		bSpoutConnected = true;
+		m_bConnected = true;
 	} // sender exists
 	else {
 		// There is no sender or the connected sender closed.
 		ReleaseReceiver();
 		// The local texture pointer will be null.
 		// Let the application know.
-		bSpoutConnected = false;
+		m_bConnected = false;
 	}
 
-	return bSpoutConnected;
+	return m_bConnected;
 
 }
 
@@ -561,6 +599,13 @@ bool spoutDX::ReceiveMemory(const char* sendername, unsigned char* pixels,
 
 	if (!memoryshare.OpenSenderMemory(sendername))
 		return false;
+
+	if (!IsConnected()) {
+		SetupReceiver(m_Width, m_Height);
+		m_bUpdate = true;
+		m_bConnected = true;
+		return true;
+	}
 
 	unsigned char* pBuffer = memoryshare.LockSenderMemory();
 	if (!pBuffer) {
@@ -612,6 +657,24 @@ DXGI_FORMAT spoutDX::GetSenderTextureFormat()
 	return (DXGI_FORMAT)m_dwFormat;
 }
 
+void spoutDX::SetupReceiver(unsigned int width, unsigned int height)
+{
+	// Receiver will use the active sender unless the user 
+	// has specified a sender to connect to using SetReceiverName
+	if (!m_SenderNameSetup[0]) {
+		m_SenderName[0] = 0;
+		m_bUseActive = true;
+	}
+
+	// Record details for subsequent functions
+	m_Width = width;
+	m_Height = height;
+	// m_bInvert = false; // Default false
+	m_bUpdate = false;
+	m_bConnected = false;
+
+}
+
 void spoutDX::ReleaseReceiver()
 {
 	// Release the local texture for texture copy
@@ -635,48 +698,21 @@ void spoutDX::ReleaseReceiver()
 
 	// Initialize again when a sender is found
 	bSpoutInitialized = false;
-	bSpoutUpdated = false;
+	m_bUpdate = false;
 
-}
-
-//---------------------------------------------------------
-void spoutDX::SetupReceiver(unsigned int width, unsigned int height, bool bInvert)
-{
-	// CreateReceiver will use the active sender unless the user 
-	// has specified a sender to connect to using SetReceiverName
-	if (!m_SenderNameSetup[0]) {
-		m_SenderName[0] = 0;
-		m_bUseActive = true;
-	}
-
-	// Record details for subsequent functions
-	m_Width = width;
-	m_Height = height;
-	m_bInvert = bInvert; // Default false
-	bSpoutUpdated = false;
-	bSpoutConnected = false;
-
-}
-
-void spoutDX::SetReceiverName(const char * SenderName)
-{
-	if (SenderName && SenderName[0]) {
-		strcpy_s(m_SenderNameSetup, 256, SenderName);
-		strcpy_s(m_SenderName, 256, SenderName);
-	}
 }
 
 bool spoutDX::IsUpdated()
 {
-	bool bRet = bSpoutUpdated;
+	bool bRet = m_bUpdate;
 	// Reset the update flag
-	bSpoutUpdated = false;
+	m_bUpdate = false;
 	return bRet;
 }
 
 bool spoutDX::IsConnected()
 {
-	return bSpoutConnected;
+	return m_bConnected;
 }
 
 //---------------------------------------------------------
@@ -994,7 +1030,7 @@ bool spoutDX::ReadRGBApixels(ID3D11Texture2D* pStagingTexture,
 	D3D11_MAPPED_SUBRESOURCE mappedSubResource;
 	HRESULT hr;
 	void * dataPointer = NULL;
-
+	
 	if (!pixels)
 		return false;
 
@@ -1011,7 +1047,7 @@ bool spoutDX::ReadRGBApixels(ID3D11Texture2D* pStagingTexture,
 		dataPointer = mappedSubResource.pData;
 		// Copy the the staging texture to the user pixel buffer
 		// TODO - formats (texture is bgra)
-		spoutcopy.CopyPixels((unsigned char *)dataPointer, pixels, width, height);
+		spoutcopy.CopyPixels((unsigned char *)dataPointer, pixels, width, height, GL_RGBA, bInvert);
 		m_pImmediateContext->Unmap(m_pStagingTexture, 0);
 		return true;
 	} // endif DX11 map OK
