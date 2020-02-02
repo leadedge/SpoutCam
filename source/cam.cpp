@@ -185,7 +185,8 @@
 	14.01.10   Add version information in cam.rc
 			   Update to revised 2.007 SpoutSDK files
 			   Rebuild 2.007 VS2017 /MT 32/64bit DirectX 11 Version 2.001 
-
+	02.02.20   Correct resampling functions for staging texture pitch
+			   Rebuild 2.007 VS2017 /MT 32/64bit DirectX 11 Version 2.002
 
 */
 
@@ -208,12 +209,12 @@ CUnknown * WINAPI CVCam::CreateInstance(LPUNKNOWN lpunk, HRESULT *phr)
 {
     ASSERT(phr);
 
-	// debug console window
 	/*
+	// debug console window
 	FILE * pCout = NULL;
 	AllocConsole();
 	freopen_s(&pCout, "CONOUT$", "w", stdout);
-	printf("SpoutCamDX ~~ 14-01-20 : VS2017\n");
+	printf("SpoutCamDX ~~ 02-02-20 : VS2017 - Vers 2.002\n");
 	*/
 
     CUnknown *punk = new CVCam(lpunk, phr);
@@ -721,6 +722,7 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 				HANDLE dxShareHandle;
 				DWORD dwFormat;
 				if (receiver.GetSenderInfo(g_SenderName, width, height, dxShareHandle, dwFormat)) {
+
 					// receiver.SetupReceiver(width, height);
 					// Set the sender to the registry for SpoutCamSettings
 					WritePathToRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "sendername", g_SenderName);
@@ -737,19 +739,10 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 			} // end found active sender
 		} // end not initialized
 		else {
-			// Receive the shared texture or memoryshare pixels into the bgra pixel buffer
-			if (bMemoryMode) {
-				if (receiver.ReceiveMemory(g_SenderName, (unsigned char *)pData, g_Width, g_Height, GL_BGR_EXT, true)) {
-					NumFrames++;
-					return NOERROR;
-				}
-			}
-			else {
-				// Get bgr pixels from the sender bgra shared texture
-				if (receiver.ReceiveRGBimage(pData, g_Width, g_Height, true)) {
-					NumFrames++;
-					return NOERROR;
-				}
+			// Get bgr pixels from the sender bgra shared texture
+			if (receiver.ReceiveRGBimage(pData, g_Width, g_Height, true)) {
+				NumFrames++;
+				return NOERROR;
 			}
 		} // endif initialized
 	} // endif not disconnected

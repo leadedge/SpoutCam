@@ -54,12 +54,41 @@ class SPOUT_DLLEXP spoutDX {
 	bool OpenDirectX11();
 	void CleanupDX11();
 
-	//
-	// SENDER
-	//
+	// -------------------------------------------------------
 
-	// Send a DX11 texture (creates and updates a sender)
-	bool SendTexture(const char* sendername, ID3D11Device* pDevice, ID3D11Texture2D* pTexture);
+	// Sender with application shared texture
+	// Receiver with application receiving texture
+
+	// SENDER
+
+	// Create a sender with a shared texture
+	bool CreateSender(const char* sendername, unsigned int width, unsigned int height, HANDLE sharehandle, DXGI_FORMAT format);
+	// Update sender details
+	bool UpdateSender(const char *sendername, unsigned int width, unsigned int height, HANDLE hSharehandle, DXGI_FORMAT format);
+	// Lock the sender mutex for access to the shared texture
+	bool LockTexture();
+	// Unlock the sender mutex
+	void UnlockTexture();
+	// Copy to the sender shared texture
+	bool CopyTexture(ID3D11Device* pd3dDevice, ID3D11Texture2D* pTexture, HANDLE sharehandle);
+
+	// RECEIVER
+
+	// Receive sender texture details
+	bool ReceiveTextureData();
+	// Lock the sender mutex for access to the shared texture
+	bool LockSenderTexture();
+	// Unlock the sender mutex
+	void UnlockSenderTexture();
+	// Copy the the sender shared texture to an application texture
+	bool CopySenderTexture(ID3D11Device* pd3dDevice, ID3D11Texture2D* pTexture);
+
+	// -------------------------------------------------------
+
+	// Sender with class shared texture
+	// Send a DX11 texture using the application device (creates and updates a sender)
+	bool SendTexture(const char* sendername, ID3D11Device* pDevice, ID3D11Texture2D* &pTexture);
+
 	// Close sender and free resources
 	void ReleaseSender();
 	// Hold frame rate
@@ -73,21 +102,27 @@ class SPOUT_DLLEXP spoutDX {
 	// Get frame number
 	long GetFrame();
 
-	//
-	// RECEIVER
-	//
+	// Receiver with class receiving texture
+	bool ReceiveTexture();
 
-	// Set the sender name to connect to
-	void SetReceiverName(const char * SenderName);
-	// Receive a DX11 texture from a sender
-	bool ReceiveTexture(ID3D11Device* pd3dDevice);
 	// Receive pixels from a sender via DX11 staging texture
 	bool ReceiveImage(unsigned char * pData);
+	bool ReceiveRGBAimage(unsigned char * pData, unsigned int sourceWidth, unsigned int sourceHeight, bool bInvert);
+
+	// TODO - remove ?
 	// Receive pixels from a sender via DX11 staging texture to an rgb buffer of variable size
 	bool ReceiveRGBimage(unsigned char * pData, unsigned int sourceWidth, unsigned int sourceHeight, bool bInvert = false);
+	// TODO - remove
+	bool ReceiveMemoryImage(const char* sendername, unsigned char* pixels,
+		unsigned int width, unsigned int height, GLenum glFormat, bool bInvert = false);
+
+	
 	// Receive pixels from sender shared memory (Spout memory mode must be selected)
 	bool ReceiveMemory(const char* sendername, unsigned char* pixels,
 		unsigned int width, unsigned int height, GLenum glFormat, bool bInvert);
+	
+	// Set the sender name to connect to
+	void SetReceiverName(const char * SenderName);
 	// Close receiver and free resources
 	void ReleaseReceiver();
 	// Open the user sender selection dialog
@@ -98,8 +133,12 @@ class SPOUT_DLLEXP spoutDX {
 	bool IsUpdated();
 	// Return shared texture copy
 	ID3D11Texture2D* GetSenderTexture();
+	// Return sender shared texture share handle
+	HANDLE GetSenderHandle();
 	// Return texture format
-	DXGI_FORMAT GetSenderTextureFormat();
+	DXGI_FORMAT GetSenderFormat();
+	// Set misc creation flags for received texture copy
+	void SetTextureFlags(UINT miscflags);
 	// Return sender name
 	const char * GetSenderName();
 	// Return sender width
@@ -122,22 +161,32 @@ class SPOUT_DLLEXP spoutDX {
 	bool GetSenderInfo(const char* Sendername, unsigned int &width, unsigned int &height, HANDLE &dxShareHandle, DWORD &dwFormat);
 	bool GetActiveSender(char* Sendername);
 	bool SetActiveSender(const char* Sendername);
+
 	// Adapter functions
 	int  GetNumAdapters(); // Get the number of graphics adapters in the system
 	bool GetAdapterName(int index, char *adaptername, int maxchars); // Get an adapter name
 	int  GetAdapter(); // Get the current adapter index
 	bool SetAdapter(int index = 0); // Set required graphics adapter for output
+
 	// Utilities
 	bool GetDX9();
 	bool GetMemoryShareMode();
 	int  GetMaxSenders(); // Get maximum senders allowed
 	void SetMaxSenders(int maxSenders); // Set maximum senders allowed
+	bool CreateDX11Texture(ID3D11Device* pd3dDevice,
+		unsigned int width, unsigned int height,
+		DXGI_FORMAT format, UINT miscflags,
+		ID3D11Texture2D** ppTexture, HANDLE* pShareHandle = nullptr);
+
+	spoutCopy spoutcopy;
 
 protected :
 
-	void SetupReceiver(unsigned int width, unsigned int height);
-	bool CreateDX11Texture(ID3D11Device* pd3dDevice, unsigned int width, unsigned int height, DXGI_FORMAT format, ID3D11Texture2D** ppTexture);
-	bool CreateDX11StagingTexture(ID3D11Device* pDevice, unsigned int width, unsigned int height, DXGI_FORMAT format, ID3D11Texture2D** pStagingTexture);
+	void SetupReceiver(unsigned int width = 0, unsigned int height = 0);
+	bool CreateDX11StagingTexture(ID3D11Device* pDevice,
+		unsigned int width, unsigned int height,
+		DXGI_FORMAT format,
+		ID3D11Texture2D** pStagingTexture);
 	bool CheckStagingTexture(unsigned int width, unsigned int height);
 	bool ReadRGBApixels(ID3D11Texture2D* pStagingTexture, unsigned char* pixels, unsigned int width, unsigned int height, bool bInvert);
 	bool ReadRGBpixels(ID3D11Texture2D* pStagingTexture, unsigned char* pixels, unsigned int width, unsigned int height, bool bInvert);
@@ -146,16 +195,18 @@ protected :
 	spoutSenderNames spoutsender;
 	spoutDirectX spoutdx;
 	spoutFrameCount frame;
-	spoutCopy spoutcopy;
+	// spoutCopy spoutcopy;
 	spoutMemoryShare memoryshare;
 
 	ID3D11Device* m_pd3dDevice;
 	ID3D11DeviceContext* m_pImmediateContext; // DX11
-	ID3D11Texture2D* m_pSenderTexture;
+	ID3D11Texture2D* m_pReceivedTexture;
+	HANDLE m_ShareHandle;
 	ID3D11Texture2D* m_pStagingTexture;
 	ID3D11Texture2D* m_pSharedTexture;
 	HANDLE m_dxShareHandle;
 	DWORD m_dwFormat;
+	UINT m_MiscFlags;
 	char m_SenderNameSetup[256];
 	char m_SenderName[256];
 	unsigned int m_Width;
@@ -163,7 +214,6 @@ protected :
 	bool bSpoutInitialized;
 	bool m_bConnected;
 	bool m_bUpdate;
-	bool m_bInvert;
 	bool m_bUseActive;
 	bool bSpoutPanelOpened;
 	bool bSpoutPanelActive;

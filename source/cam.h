@@ -176,8 +176,8 @@ public:
 
 	GLenum glBGRmode;
 
-	unsigned int g_Width;			// The global filter image width
-	unsigned int g_Height;			// The global filter image height
+	unsigned int g_Width;			 // The global filter image width
+	unsigned int g_Height;			 // The global filter image height
 
 	DWORD dwFps;					// Fps from SpoutCamConfig
 	DWORD dwResolution;				// Resolution from SpoutCamConfig
