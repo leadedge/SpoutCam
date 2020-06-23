@@ -12,7 +12,7 @@
 	after the filter has been loaded. If there is no Sender, 
 	the default is 640x480 with a noise image
 
-	Copyright 2013-2019 Lynn Jarvis - spout@zeal.co
+	Copyright 2013-2020 Lynn Jarvis - spout@zeal.co
 
 	"SpoutCam" is free software: 
 	you can redistribute it and/or modify it under the terms of the GNU
@@ -187,6 +187,14 @@
 			   Rebuild 2.007 VS2017 /MT 32/64bit DirectX 11 Version 2.001 
 	02.02.20   Correct resampling functions for staging texture pitch
 			   Rebuild 2.007 VS2017 /MT 32/64bit DirectX 11 Version 2.002
+	10.05.20   Revise for 2.007 functions
+			   Rebuild 2.007 VS2017 /MT 32/64bit DirectX 11 Version 2.003
+	09.06.20   Revise SpoutDX class
+			   Rebuild 2.007 VS2017 /MT 32/64bit DirectX 11 Version 2.004
+	23.06.30   Revise SpoutDX class and SpoutCopy
+			   Memoryshare not supported for DirectX version
+			   Rebuild 2.007 VS2017 /MT 32/64bit DirectX 11 Version 2.005
+
 
 */
 
@@ -214,7 +222,7 @@ CUnknown * WINAPI CVCam::CreateInstance(LPUNKNOWN lpunk, HRESULT *phr)
 	FILE * pCout = NULL;
 	AllocConsole();
 	freopen_s(&pCout, "CONOUT$", "w", stdout);
-	printf("SpoutCamDX ~~ 02-02-20 : VS2017 - Vers 2.002\n");
+	printf("SpoutCamDX ~~10-05-20 : VS2017 - Vers 2.005\n");
 	*/
 
     CUnknown *punk = new CVCam(lpunk, phr);
@@ -380,14 +388,17 @@ HRESULT STDMETHODCALLTYPE CVCam::Unregister( void)
 CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
     CSourceStream(NAME("SpoutCam"), phr, pParent, pPinName), m_pParent(pParent)
 {
+	g_pd3dDevice    = nullptr;
+	bDXinitialized  = false; // DirectX
 	bMemoryMode		= false; // Default mode is texture, true means memoryshare
 	bInvert         = true;  // Not currently used
 	bInitialized	= false; // Spoutcam reiver
-	bDXinitialized	= false; // DirectX
 	bDisconnected	= false; // Has to connect before can disconnect or it will never connect
 	g_Width			= 640;	 // give it an initial size - this will be changed if a sender is running at start
 	g_Height		= 480;
 	g_SenderName[0] = 0;
+	g_ActiveSender[0] = 0;
+
 
 	// Retrieve fps and resolution from registry "SpoutCamConfig"
 	//		o Fps
@@ -443,7 +454,6 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 
 	// Find out whether memoryshare mode is selected by SpoutSettings
 	bMemoryMode = receiver.GetMemoryShareMode();
-	// printf("bMemoryMode = %d\n", bMemoryMode);
 
 	m_Fps = dwFps;
 	m_Resolution = dwResolution;
@@ -454,6 +464,8 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 	NumDroppedFrames = 0;
 	NumFrames = 0;
 	hwndButton = NULL; // ensure NULL of static variable for the OpenGL window handle
+
+	receiver.SetSenderName("Spout DX11 Sender");
 
 }
 
@@ -581,7 +593,6 @@ HRESULT CVCamStream::QueryInterface(REFIID riid, void **ppv)
 //////////////////////////////////////////////////////////////////////////
 HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 {
-
 	unsigned int imagesize, width, height;
 	long l, lDataLen;
 	bool bResult = false;
@@ -637,7 +648,6 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 		rtDelta2=rtDelta-refSync2;
 		if (abs(rtDelta2 / 10000) >= 1) {
 			// Sleep is msec precision
-			// printf("Sleep(%d)\n", (DWORD)abs(rtDelta2 / 10000));
 			Sleep((DWORD)abs(rtDelta2 / 10000));
 		}
 	} // endif (rtDelta-refSync2 < 0)
@@ -661,90 +671,65 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 
 	// Check access to the sample's data buffer
     pms->GetPointer(&pData);
-	if(pData == NULL) {
+	if(pData == NULL)
 		return NOERROR;
-	}
 
 	// Get the current frame size for texture transfers
     imagesize = (unsigned int)pvi->bmiHeader.biSizeImage;
 	width = (unsigned int)pvi->bmiHeader.biWidth;
 	height = (unsigned int)pvi->bmiHeader.biHeight;
-	if(width == 0 || height == 0) {
+	if(width == 0 || height == 0)
 		return NOERROR;
-	}
 
 	// DX9 mode not supported for SpoutCam DX11 version
-	if (receiver.GetDX9()) {
+	if (receiver.GetDX9())
 		return NOERROR;
-	}
 
 	// Don't do anything if disconnected because it will already have connected
 	// previously and something has changed. It can only disconnect after it has connected.
 	if(!bDisconnected) {
+
 		// If connected, sizes should be OK, but check again
 		unsigned int size = (unsigned int)pms->GetSize();
 		imagesize = width*height*3; // Retrieved above
 		if(size != imagesize) {
-			if(bInitialized) 
-				receiver.ReleaseReceiver();
-			bInitialized = false;
+			receiver.ReleaseReceiver();
 			bDisconnected = true; // don't try again
 			return NOERROR;
 		}
 
 		// Quit if nothing running at all
 		if(!receiver.GetActiveSender(g_ActiveSender)) {
-			if(bInitialized)
-				receiver.ReleaseReceiver();
-			bInitialized = false;
+			receiver.ReleaseReceiver();
 			goto ShowStatic;
 		}
 
-		// everything ready
-		if(!bInitialized) {
-			// If not initialized, look for a sender
-			if(receiver.GetActiveSender(g_SenderName)) {
-				// Initialize DirectX if is has not been done
-				if(!bDXinitialized) {
-					if(receiver.OpenDirectX11()) {
-						bDXinitialized = true;
-					}
-					else {
-						printf("Could not initialize DirectX\n");
-						bDXinitialized = false;
-						bDisconnected = true; // don't try again
-						return NOERROR;
-					}
-				} // endif !bDXinitialized
-
-				// Found a sender so initialize the receiver
-				unsigned int width, height;
-				HANDLE dxShareHandle;
-				DWORD dwFormat;
-				if (receiver.GetSenderInfo(g_SenderName, width, height, dxShareHandle, dwFormat)) {
-
-					// receiver.SetupReceiver(width, height);
-					// Set the sender to the registry for SpoutCamSettings
-					WritePathToRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "sendername", g_SenderName);
-					// Write the sender path to the registry for SpoutPanel
-					WritePathToRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "Sender", g_SenderName);
-					bInitialized = true;
-					NumFrames++;
-					return NOERROR; // no more for this frame
-				} // endif GetSenderInfo
-				else {
-					printf("Could not find sender %s\n", g_SenderName);
-					// TODO : what
-				}
-			} // end found active sender
-		} // end not initialized
-		else {
-			// Get bgr pixels from the sender bgra shared texture
-			if (receiver.ReceiveRGBimage(pData, g_Width, g_Height, true)) {
-				NumFrames++;
+		// Initialize DirectX if is has not been done
+		if(!bDXinitialized) {
+			g_pd3dDevice = receiver.OpenDirectX11();
+			if(!g_pd3dDevice) {
+				bDXinitialized = false;
+				bDisconnected = true; // don't try again
 				return NOERROR;
 			}
-		} // endif initialized
+		} // endif !bDXinitialized
+		bDXinitialized = true;
+
+		// Get bgr pixels from the sender bgra shared texture
+		// ReceiveRGBimage handles sender detection, connection and copy of pixels
+		if (receiver.ReceiveRGBimage(g_pd3dDevice, pData, g_Width, g_Height, true)) {
+			// If IsUpdated() returns true, the sender or sender size has changed
+			if (receiver.IsUpdated()) {
+				if (strcmp(g_SenderName, receiver.GetSenderName()) != 0) {
+					strcpy_s(g_SenderName, 256, receiver.GetSenderName());
+					// Set the sender to the registry for SpoutCamSettings
+					WritePathToRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "sendername", g_SenderName);
+				}
+			}
+			bInitialized = true;
+			NumFrames++;
+			return NOERROR;
+		}
 	} // endif not disconnected
 
 ShowStatic :
@@ -775,11 +760,7 @@ STDMETHODIMP CVCamStream::Notify(IBaseFilter * pSender, Quality q)
 //////////////////////////////////////////////////////////////////////////
 HRESULT CVCamStream::SetMediaType(const CMediaType *pmt)
 {
-	ASSERT(pmt); // LJ DEBUG
-
-	// LJ DEBUG
-	// warning C4189: 'pvi' : local variable is initialized but not referenced
-	// DECLARE_PTR(VIDEOINFOHEADER, pvi, pmt->Format());
+	ASSERT(pmt);
     
 	// Pass the call up to my base class
 	HRESULT hr = CSourceStream::SetMediaType(pmt);

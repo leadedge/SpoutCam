@@ -33,7 +33,6 @@
 #ifndef __spoutUtils__ // standard way as well
 #define __spoutUtils__
 
-#include "SpoutCommon.h"
 #include <windows.h>
 #include <stdio.h> // for console
 #include <iostream> // std::cout, std::end
@@ -45,6 +44,11 @@
 #include <Shellapi.h> // for shellexecute
 #include <shlwapi.h> // for path functions
 #include <shlobj.h> // to find the AppData folder
+
+#if _MSC_VER >= 1900
+#include <chrono> // c++11 timer
+#include <thread>
+#endif
 
 #pragma comment(lib, "Shell32.lib") // for shellexecute
 #pragma comment(lib, "shlwapi.lib") // for path functions
@@ -115,6 +119,13 @@ namespace spoututils {
 	bool RemovePathFromRegistry(HKEY hKey, const char *subkey, const char *valuename);
 	bool RemoveSubKey(HKEY hKey, const char *subkey);
 	bool FindSubKey(HKEY hKey, const char *subkey);
+
+	// Timing functions for testing
+#if _MSC_VER >= 1900
+	void StartTiming();
+	double EndTiming(); // microseconds elapsed
+#endif
+
 
 }
 

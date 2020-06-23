@@ -48,6 +48,9 @@
 //		18.09.19	- Changed initial log from notice to to verbose
 //					  for CreateSharedDX9Texture and CreateSharedDX11Texture
 //		08.11.19	- removed immediate context check from OpenDX11shareHandle
+//		15.03.20	- allow for zero or DX9 format passed in to CreateSharedDX11Texture for utility use
+//		16.06.20	- Create separate Wait function
+//					- Update comments
 //
 // ====================================================================================
 /*
@@ -76,7 +79,7 @@
 
 */
 
-#include "spoutDirectX.h"
+#include "SpoutDirectX.h"
 
 spoutDirectX::spoutDirectX() {
 
@@ -152,7 +155,7 @@ IDirect3DDevice9Ex* spoutDirectX::CreateDX9device(IDirect3D9Ex* pD3D, HWND hWnd)
 		dwBehaviorFlags |= D3DCREATE_SOFTWARE_VERTEXPROCESSING;
 
 	// Create a DirectX9 device - we use directx only for accessing the handle
-	// LJ notes - hwnd seems to have no effect - maybe because we do not render anything.
+	// Note : hwnd seems to have no effect - maybe because we do not render anything.
 	// Note here that we are setting up for Windowed mode but it seems not to be affected
 	// by fullscreen, probably because we are not rendering to it.
 	HRESULT res = pD3D->CreateDeviceEx(	AdapterIndex,   // D3DADAPTER_DEFAULT
@@ -190,8 +193,8 @@ bool spoutDirectX::CreateSharedDX9Texture(IDirect3DDevice9Ex* pDevice, unsigned 
 										 height,
 										 1,
 										 D3DUSAGE_RENDERTARGET, 
-										 format,	// default is D3DFMT_A8R8G8B8 - may be set externally
-										 D3DPOOL_DEFAULT,	// Required by interop spec
+										 format, // default is D3DFMT_A8R8G8B8 - may be set externally
+										 D3DPOOL_DEFAULT, // Required by interop spec
 										 &dxTexture,
 										 &dxShareHandle);	// local share handle to allow type casting for 64bit
 
@@ -199,7 +202,7 @@ bool spoutDirectX::CreateSharedDX9Texture(IDirect3DDevice9Ex* pDevice, unsigned 
 	// USAGE, format and size for sender and receiver must all match
 	if ( res != D3D_OK ) {
 		char tmp[256];
-		sprintf_s(tmp, 256, "spoutDirectX::CreateSharedDX9Texture error (%x) - ", res);
+		sprintf_s(tmp, 256, "spoutDirectX::CreateSharedDX9Texture error (0X%x) - ", res);
 		switch (res) {
 			case D3DERR_INVALIDCALL:
 				strcat_s(tmp, 256, "D3DERR_INVALIDCALL");
@@ -335,11 +338,16 @@ ID3D11Device* spoutDirectX::CreateDX11device()
 
 	// These are the feature levels that we will accept.
 	// m_featureLevel is the feature level used
-	// 11.0 = 0xb000
-	// 11.1 = 0xb001
-	// TODO - check for 11.1 and multiple passes if feature level fails
+	// 11.0 is the highest level currently supported for Spout
+	// because 11.1 limits compatibility
+	// Note from D3D11 Walbourn examples :
+	//	DirectX 11.0 platforms will not recognize D3D_FEATURE_LEVEL_11_1
+	// Note from NVIDIA forums :
+	//  Not all DirectX 11.1 features are software features.
+	//  Target Independent Rasterization requires hardware support
+	//  so we can not make DX11 GPUs fully DX11.1 complaint.
 	D3D_FEATURE_LEVEL featureLevels[] =	{
-		// D3D_FEATURE_LEVEL_11_1,
+		// D3D_FEATURE_LEVEL_11_1, // 11.0 = 0xb000 : 11.1 = 0xb001
 		D3D_FEATURE_LEVEL_11_0,
 		D3D_FEATURE_LEVEL_10_1,
 		D3D_FEATURE_LEVEL_10_0,
@@ -349,7 +357,6 @@ ID3D11Device* spoutDirectX::CreateDX11device()
 
 	// To allow for multiple graphics cards we will use m_pAdapterDX11
 	// Which is set by SetAdapter before initializing DirectX
-
 	if(pAdapterDX11) {
 			hr = D3D11CreateDevice( pAdapterDX11,
 									D3D_DRIVER_TYPE_UNKNOWN,
@@ -361,6 +368,7 @@ ID3D11Device* spoutDirectX::CreateDX11device()
 									&pd3dDevice,
 									&m_featureLevel,
 									&m_pImmediateContext );
+
 	} // endif adapter set
 	else {
 		
@@ -390,6 +398,7 @@ ID3D11Device* spoutDirectX::CreateDX11device()
 			if(SUCCEEDED(hr))
 				break;
 		}
+
 	} // endif no adapter set
 	
 	// Quit if nothing worked
@@ -409,28 +418,33 @@ bool spoutDirectX::CreateSharedDX11Texture(ID3D11Device* pd3dDevice,
 											unsigned int width, 
 											unsigned int height, 
 											DXGI_FORMAT format, 
-											ID3D11Texture2D** pSharedTexture,
+											ID3D11Texture2D** ppSharedTexture,
 											HANDLE &dxShareHandle)
 {
 	ID3D11Texture2D* pTexture;
-	
+
 	if (pd3dDevice == NULL) {
 		SpoutLogFatal("spoutDirectX::CreateSharedDX11Texture NULL device");
-		return false; // 12.06.18
+		return false;
 	}
 
 	//
 	// Create a new shared DX11 texture
 	//
 
-	pTexture = *pSharedTexture; // The texture pointer
+	pTexture = *ppSharedTexture; // The texture pointer
 
-	// 27.06.19
 	// Release the texture if it already exists
 	if (pTexture) ReleaseDX11Texture(pd3dDevice, pTexture);
 
 	// SpoutLogVerbose("spoutDirectX::CreateSharedDX11Texture");
 	// SpoutLogVerbose("    pDevice = 0x%Ix, width = %d, height = %d, format = %d", (intptr_t)pd3dDevice, width, height, format);
+
+	// Use the format passed in
+	// If that is zero or DX9 format, use the default format
+	DXGI_FORMAT texformat = DXGI_FORMAT_B8G8R8A8_UNORM;
+	if (format != 0 && format != D3DFMT_A8R8G8B8)
+		texformat = format;
 
 	// Textures being shared from D3D9 to D3D11 have the following restrictions (LJ - D3D11 to D3D9 ?).
 	//		Textures must be 2D
@@ -452,9 +466,11 @@ bool spoutDirectX::CreateSharedDX11Texture(ID3D11Device* pd3dDevice,
 	desc.Height				= height;
 	desc.BindFlags			= D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
 	desc.MiscFlags			= D3D11_RESOURCE_MISC_SHARED; // This texture will be shared
-	// A DirectX 11 texture with D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX is not compatible with DirectX 9
-	// so a general named mutex is used for all texture types
-	desc.Format				= format;
+	// desc.MiscFlags = D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX;
+	// Note that a DirectX 11 texture with D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX is not
+	// compatible with DirectX 9 so a general named mutex is used for all texture types
+	desc.CPUAccessFlags		= 0;	
+	desc.Format				= texformat;
 	desc.Usage				= D3D11_USAGE_DEFAULT;
 	// Multisampling quality and count
 	// The default sampler mode, with no anti-aliasing, has a count of 1 and a quality level of 0.
@@ -502,9 +518,9 @@ bool spoutDirectX::CreateSharedDX11Texture(ID3D11Device* pd3dDevice,
 	pOtherResource->GetSharedHandle(&dxShareHandle); 
 	pOtherResource->Release();
 
-	*pSharedTexture = pTexture;
+	*ppSharedTexture = pTexture;
 
-	SpoutLogNotice("    pTexture = 0x%Ix", pTexture);
+	// SpoutLogNotice("    pTexture = 0x%Ix", pTexture);
 
 	return true;
 
@@ -737,11 +753,15 @@ int spoutDirectX::GetNumAdapters()
 
 		DXGI_ADAPTER_DESC desc;
 		adapter1_ptr->GetDesc( &desc );
-		// printf("Adapter(%d) : %S\n", i, desc.Description );
-		// printf("  Vendor Id : %d\n", desc.VendorId );
-		// printf("  Dedicated System Memory : %.0f MiB\n", (float)desc.DedicatedSystemMemory / (1024.f * 1024.f) );
-		// printf("  Dedicated Video Memory : %.0f MiB\n", (float)desc.DedicatedVideoMemory / (1024.f * 1024.f) );
-		// printf("  Shared System Memory : %.0f MiB", (float)desc.SharedSystemMemory / (1024.f * 1024.f) );
+
+		/*
+		printf("Adapter(%d) : %S\n", i, desc.Description );
+		printf("  Vendor Id : %d\n", desc.VendorId );
+		printf("  Dedicated System Memory : %.0f MiB\n", (float)desc.DedicatedSystemMemory / (1024.f * 1024.f) );
+		printf("  Dedicated Video Memory : %.0f MiB\n", (float)desc.DedicatedVideoMemory / (1024.f * 1024.f) );
+		printf("  Shared System Memory : %.0f MiB\n", (float)desc.SharedSystemMemory / (1024.f * 1024.f) );
+		*/
+
 		IDXGIOutput* p_output = nullptr;
 		
 		// 24-10-18 change from error to warning
@@ -873,16 +893,10 @@ bool spoutDirectX::GetAdapterInfo(char *adapter, char *display, int maxchars)
 
 unsigned long spoutDirectX::ReleaseDX11Texture(ID3D11Device* pd3dDevice, ID3D11Texture2D* pTexture)
 {
-	if (!pd3dDevice || !pTexture)
+	if (pd3dDevice == nullptr || !pTexture)
 		return 0;
 
 	unsigned long refcount = pTexture->Release();
-
-	if (m_pImmediateContext) {
-		m_pImmediateContext->ClearState();
-		m_pImmediateContext->Flush();
-	}
-
 	if (refcount > 0) 
 		SpoutLogWarning("spoutDirectX::ReleaseDX11Texture - refcount = %d", refcount);
 
@@ -924,36 +938,40 @@ unsigned long spoutDirectX::ReleaseDX11Device(ID3D11Device* pd3dDevice)
 }
 
 
+// 
+// For a DX11 sender :
+//   If a shared texture is updated on one device ID3D11DeviceContext::Flush must be called on that device. 
+//   https://docs.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-id3d11device-opensharedresource
+//   Only the sender updates the shared texture. It is not required for the receiver.
+//   The application can either call Flush alone or combine a flush and Wait with this function.
+//
+// For an OpenGL sender :
+//   This function is not necessary, the GL/DX interop performs the necessary flushing.
+//
 void spoutDirectX::FlushWait(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pImmediateContext)
 {
-	D3D11_QUERY_DESC queryDesc;
-	ID3D11Query * pQuery = NULL;
-
-	if (!pImmediateContext)
+	if (!pd3dDevice || !pImmediateContext)
 		return;
 
-	// ==================================================
-	// Tests confirm that for a sender the following code
-	// eliminates jerky texture access by a receiver.
-	// ==================================================
-
-	//
-	// CopyResource is an asynchronous call.
-	// https://msdn.microsoft.com/en-us/library/windows/desktop/bb205132%28v=vs.85%29.aspx#Performance_Considerations
-	// "the copy has not necessarily executed by the time the method returns".
-	//
-
-	// A flush is necessary to finish the command queue.
+	// (Approx 250 microseconds 0.25 msec)
 	pImmediateContext->Flush();
 
-	// Make sure the CopyResource function has completed before
-	// the receiver application accesses the shared texture.
+	// Also, CopyResource and Flush are both asynchronous.
+	// https://msdn.microsoft.com/en-us/library/windows/desktop/bb205132%28v=vs.85%29.aspx#Performance_Considerations
+	// Here we can wait for the copy and flush to finish before accessing the texture
+	// (Approx 550 microseconds 0.55 msec)
+	// Practical testing recommended
+	Wait(pd3dDevice, pImmediateContext);
+}
+
+
+void spoutDirectX::Wait(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pImmediateContext)
+{
 	// https://msdn.microsoft.com/en-us/library/windows/desktop/ff476578%28v=vs.85%29.aspx
-	//
-	ZeroMemory(&queryDesc, sizeof(queryDesc));
-	queryDesc.Query = D3D11_QUERY_EVENT;
 	// When the GPU is finished, ID3D11DeviceContext::GetData will return S_OK.
 	// When using this type of query, ID3D11DeviceContext::Begin is disabled.
+	D3D11_QUERY_DESC queryDesc;
+	ID3D11Query * pQuery = NULL;
 	ZeroMemory(&queryDesc, sizeof(queryDesc));
 	queryDesc.Query = D3D11_QUERY_EVENT;
 	pd3dDevice->CreateQuery(&queryDesc, &pQuery);
@@ -962,5 +980,4 @@ void spoutDirectX::FlushWait(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pImm
 		while (S_OK != pImmediateContext->GetData(pQuery, NULL, 0, 0));
 		pQuery->Release();
 	}
-
 }

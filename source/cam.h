@@ -165,9 +165,9 @@ public:
 	spoutDX receiver;
 	
 	char g_SenderName[256];
-	char g_ActiveSender[256];         // The name of any Spout sender being received
-
-	bool bMemoryMode;				// true = memory, false = texture
+	char g_ActiveSender[256];    // The name of any Spout sender being received
+	ID3D11Device* g_pd3dDevice;  // DirectX 11.0 device pointer
+	bool bMemoryMode;            // true = memory, false = texture
 	bool bInvert;
 	bool bDebug;
 	bool bInitialized;
