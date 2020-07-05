@@ -545,8 +545,7 @@ void spoutFrameCount::CloseAccessMutex()
 {
 	// Close the texture access mutex. If another application first opened
 	// the mutex it will not be finally closed here.
-	if (m_hAccessMutex) 
-		CloseHandle(m_hAccessMutex);
+	if (m_hAccessMutex) CloseHandle(m_hAccessMutex);
 	m_hAccessMutex = NULL;
 }
 

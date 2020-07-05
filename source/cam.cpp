@@ -194,6 +194,12 @@
 	23.06.30   Revise SpoutDX class and SpoutCopy
 			   Memoryshare not supported for DirectX version
 			   Rebuild 2.007 VS2017 /MT 32/64bit DirectX 11 Version 2.005
+	23.06.30   Revise SpoutDX class
+			   Changes to OpenDirectX and ReceiveRGBimage arguments
+			   A couple of comments changed
+			   Rebuild 2.007 VS2017 /MT 32/64bit DirectX 11 Version 2.006
+	05.07.20   Update to latest SpoutDX class and latest SpoutCamSettings
+			   Rebuild 2.007 VS2017 /MT 32/64bit DirectX 11 Version 2.007
 
 
 */
@@ -222,7 +228,7 @@ CUnknown * WINAPI CVCam::CreateInstance(LPUNKNOWN lpunk, HRESULT *phr)
 	FILE * pCout = NULL;
 	AllocConsole();
 	freopen_s(&pCout, "CONOUT$", "w", stdout);
-	printf("SpoutCamDX ~~10-05-20 : VS2017 - Vers 2.005\n");
+	printf("SpoutCamDX ~~10-05-20 : VS2017 - Vers 2.007\n");
 	*/
 
     CUnknown *punk = new CVCam(lpunk, phr);
@@ -433,7 +439,8 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 	//
 	dwResolution = 0;     // Resolution from SpoutCamConfig (default 0 = active sender)
 	if (ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "resolution", &dwResolution)) {
-		// if there is no Sender, getmediatype will use the default resolution setting
+		// if there is no Sender, getmediatype will use
+		// the default resolution set by the user
 		SetResolution(dwResolution);
 	}
 
@@ -458,7 +465,8 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 	m_Fps = dwFps;
 	m_Resolution = dwResolution;
 
-	// Set mediatype to shared width and height or if it did not connect set defaults
+	// Set mediatype to shared width and height
+	// or if it did not connect set defaults set by the user
 	GetMediaType(4, &m_mt);
 
 	NumDroppedFrames = 0;
@@ -706,8 +714,10 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 
 		// Initialize DirectX if is has not been done
 		if(!bDXinitialized) {
-			g_pd3dDevice = receiver.OpenDirectX11();
-			if(!g_pd3dDevice) {
+			if (receiver.OpenDirectX11()) {
+				g_pd3dDevice = receiver.GetDevice();
+			}
+			else {
 				bDXinitialized = false;
 				bDisconnected = true; // don't try again
 				return NOERROR;
@@ -717,7 +727,7 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 
 		// Get bgr pixels from the sender bgra shared texture
 		// ReceiveRGBimage handles sender detection, connection and copy of pixels
-		if (receiver.ReceiveRGBimage(g_pd3dDevice, pData, g_Width, g_Height, true)) {
+		if (receiver.ReceiveRGBimage(pData, g_Width, g_Height, true)) {
 			// If IsUpdated() returns true, the sender or sender size has changed
 			if (receiver.IsUpdated()) {
 				if (strcmp(g_SenderName, receiver.GetSenderName()) != 0) {

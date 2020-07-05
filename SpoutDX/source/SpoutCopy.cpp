@@ -42,6 +42,7 @@
 	02.02.20 - Add rgba2rgbaResample and row pitch to all resamplers
 	22.06.20 - Add void rgba2rgba and rgba2rgb with source pitch
 			   Correct const for some functions
+	30.06.20 - Use CopyPixels instead of copy loop in rgba2rgba
 
 */
 #include "SpoutCopy.h"
@@ -71,22 +72,28 @@ void spoutCopy::CopyPixels(const unsigned char *source,
 		Size = width*height * 3;
 
 	if (bInvert) {
+		// printf("flip\n");
 		FlipBuffer(source, dest, width, height, glFormat);
 	}
 	else {
-		if (width < 320 || height < 240) { // Too small for assembler
+		// if (width < 320 || height < 240) { // Too small for assembler
+		if (width < 320) { // Too small for assembler
+			// printf("memcpy\n");
 			memcpy(reinterpret_cast<void *>(dest),
 				reinterpret_cast<const void *>(source), Size);
 		}
 		else if ((Size % 16) == 0 && m_bSSE2) { // 16 byte aligned SSE assembler
+			// printf("memcpy_sse2\n");
 			memcpy_sse2(reinterpret_cast<void *>(dest),
 				reinterpret_cast<const void *>(source), Size);
 		}
 		else if ((Size % 4) == 0) { // 4 byte aligned assembler
+			// printf("_movsd\n");
 			__movsd(reinterpret_cast<unsigned long *>(dest),
 				reinterpret_cast<const unsigned long *>(source), Size / 4);
 		}
 		else { // Default is standard memcpy
+			// printf("memcpy (2)\n");
 			memcpy(reinterpret_cast<void *>(dest),
 				reinterpret_cast<const void *>(source), Size);
 		}
@@ -709,8 +716,9 @@ void spoutCopy::rgba2rgba(const void* rgba_source, void* rgba_dest,
 		auto source = static_cast<const unsigned __int32 *>(rgba_source);; // unsigned int = 4 bytes
 		auto dest = static_cast<unsigned __int32 *>(rgba_dest);
 		// Increment to current line
+		// pitch is line length in bytes. Divide by 4 to get the width in rgba pixels.
 		if (bInvert) {
-			source += (unsigned long)((height - 1 - y)*sourcePitch/4); // pitch is line length in pixels
+			source += (unsigned long)((height - 1 - y)*sourcePitch/4);
 			dest += (unsigned long)(y * width); // dest is not inverted
 		}
 		else {
@@ -718,12 +726,33 @@ void spoutCopy::rgba2rgba(const void* rgba_source, void* rgba_dest,
 			dest += (unsigned long)(y * width);
 		}
 		// Copy the line
-		for (unsigned int x = 0; x < width; x++) {
-			dest[x] = source[x];
-		}
+		CopyPixels((const unsigned char *)source, (unsigned char *)dest, width, 1);
 	}
 }
 
+void spoutCopy::rgba2rgba(const void* rgba_source, void* rgba_dest,
+	unsigned int width, unsigned int height,
+	unsigned int sourcePitch, unsigned int destPitch, bool bInvert) const
+{
+	// For all rows
+	for (unsigned int y = 0; y < height; y++) {
+		// Start of buffers
+		auto source = static_cast<const unsigned __int32 *>(rgba_source);; // unsigned int = 4 bytes
+		auto dest = static_cast<unsigned __int32 *>(rgba_dest);
+		// Increment to current line
+		// Pitch is line length in bytes. Divide by 4 to get the width in rgba pixels.
+		if (bInvert) {
+			source += (unsigned long)((height - 1 - y)*sourcePitch / 4);
+			dest += (unsigned long)(y * destPitch / 4); // dest is not inverted
+		}
+		else {
+			source += (unsigned long)(y * sourcePitch / 4);
+			dest += (unsigned long)(y * destPitch / 4);
+		}
+		// Copy the line
+		CopyPixels((const unsigned char *)source, (unsigned char *)dest, width, 1);
+	}
+}
 
 // Adapted from :
 // http://tech-algorithm.com/articles/nearest-neighbor-image-scaling/

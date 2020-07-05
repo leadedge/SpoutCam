@@ -109,13 +109,12 @@ protected :
 	// Avoid C4251 warnings in SpoutLibrary by using pointers
 	std::chrono::steady_clock::time_point * m_FrameStartPtr;
 	std::chrono::steady_clock::time_point * m_FrameEndPtr;
-#else
-	double m_FrameStart;
 #endif
 
 	// PC timer
 	double PCFreq;
 	__int64 CounterStart;
+	double m_FrameStart;
 	void StartCounter();
 	double GetCounter();
 
