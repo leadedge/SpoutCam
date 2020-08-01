@@ -33,18 +33,16 @@
 #define __spoutDX__
 
 // Change the path as required
-#include "..\..\..\SpoutSDK\SpoutCommon.h" // for dll build and utilities
-#include "..\..\..\SpoutSDK\SpoutSenderNames.h" // for sender creation and update
-#include "..\..\..\SpoutSDK\SpoutDirectX.h" // for creating DX11 textures
-#include "..\..\..\SpoutSDK\SpoutFrameCount.h" // for mutex lock and new frame signal
-#include "..\..\..\SpoutSDK\SpoutCopy.h" // for pixel copy
-#include "..\..\..\SpoutSDK\SpoutUtils.h" // Registry utiities
+#include "SpoutCommon.h" // for dll build and utilities
+#include "SpoutSenderNames.h" // for sender creation and update
+#include "SpoutDirectX.h" // for creating DX11 textures
+#include "SpoutFrameCount.h" // for mutex lock and new frame signal
+#include "SpoutCopy.h" // for pixel copy
+#include "SpoutUtils.h" // Registry utiities
 
 #include <direct.h> // for _getcwd
 #include <TlHelp32.h> // for PROCESSENTRY32
 #include <tchar.h> // for _tcsicmp
-
-using namespace spoututils;
 
 class SPOUT_DLLEXP spoutDX {
 
@@ -152,11 +150,11 @@ class SPOUT_DLLEXP spoutDX {
 
 	spoutFrameCount frame;
 	spoutDirectX spoutdx;
-	spoutCopy spoutcopy;
 
 protected :
 
 	spoutSenderNames spoutsender;
+	spoutCopy spoutcopy;
 
 	ID3D11Device* m_pd3dDevice;
 	ID3D11DeviceContext* m_pImmediateContext;

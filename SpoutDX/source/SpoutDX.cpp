@@ -185,7 +185,7 @@ bool spoutDX::SetSenderName(const char* sendername)
 
 void spoutDX::SetSenderFormat(DXGI_FORMAT format)
 {
-	m_dwFormat = (DWORD)format;
+	m_dwFormat = format;
 }
 
 void spoutDX::ReleaseSender()
@@ -574,7 +574,10 @@ bool spoutDX::ReceiveRGBimage(unsigned char * pData, unsigned int width, unsigne
 				CheckStagingTexture(m_Width, m_Height, m_dwFormat);
 				return true;
 			}
-			return false;
+			else {
+				return false;
+			}
+			return true;
 		}
 
 		if (!m_pStagingTexture)
@@ -910,6 +913,9 @@ bool spoutDX::ReadRGBpixels(ID3D11Texture2D* pStagingTexture,
 {
 	if (!m_pImmediateContext || !pStagingTexture || !pixels)
 		return false;
+
+	// LJ DEBUG
+	printf("Format = %d\n", m_dwFormat);
 
 	D3D11_MAPPED_SUBRESOURCE mappedSubResource;
 	// Map the resource so we can access the pixels

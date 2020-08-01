@@ -45,6 +45,7 @@
 	30.06.20 - Use CopyPixels instead of copy loop in rgba2rgba
 	09.07.20 - Add rgba2rgb with source stride
 
+
 */
 #include "SpoutCopy.h"
 
@@ -298,15 +299,12 @@ void spoutCopy::CheckSSE()
 //
 void spoutCopy::rgba2bgra(const void *rgba_source, void *bgra_dest, unsigned int width, unsigned int height, bool bInvert) const
 {
-	if ((width % 16) == 0) { // 16 byte aligned width
-		if (m_bSSE2 && m_bSSSE3) // SSE3 available
-			rgba_bgra_sse3(rgba_source, bgra_dest, width, height, bInvert);
-		else if (m_bSSE2) // SSE2 available
-			rgba_bgra_sse2(rgba_source, bgra_dest, width, height, bInvert);
-	}
-	else {
+	if (m_bSSE2 && m_bSSSE3 && ((width % 16) == 0)) // SSE3 available and 16 byte aligned width
+		rgba_bgra_sse3(rgba_source, bgra_dest, width, height, bInvert);
+	else if (m_bSSE2) // SSE2 available
+		rgba_bgra_sse2(rgba_source, bgra_dest, width, height, bInvert);
+	else
 		rgba_bgra(rgba_source, bgra_dest, width, height, bInvert);
-	}
 }
 
 
@@ -690,6 +688,7 @@ void spoutCopy::rgba2bgr(const void *rgba_source, void *bgr_dest,
 	}
 
 } // end rgba2bgr
+
 
 
 void spoutCopy::bgra2rgb(const void *bgra_source, void *rgb_dest, unsigned int width, unsigned int height, bool bInvert) const

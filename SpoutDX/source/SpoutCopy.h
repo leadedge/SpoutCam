@@ -61,7 +61,6 @@ class SPOUT_DLLEXP spoutCopy {
 
 		void rgba2rgba(const void* source, void* dest, unsigned int width, unsigned int height,
 			unsigned int sourcePitch, bool bInvert = false) const;
-
 		void rgba2rgba(const void* source, void* dest, unsigned int width, unsigned int height,
 			unsigned int sourcePitch, unsigned int destPitch, bool bInvert) const;
 		void rgba2rgbaResample(const void* source, void* dest,
