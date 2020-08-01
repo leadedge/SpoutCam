@@ -200,7 +200,14 @@
 			   Rebuild 2.007 VS2017 /MT 32/64bit DirectX 11 Version 2.006
 	05.07.20   Update to latest SpoutDX class and latest SpoutCamSettings
 			   Rebuild 2.007 VS2017 /MT 32/64bit DirectX 11 Version 2.007
-
+	09.07.20   Correct incorrect colours for RGBA senders
+			   Add rgba2rgb to SpoutCopy
+			   Correct Version numbering from .0008 to .008
+			   Rebuild 2.007 VS2017 /MT 32/64bit DirectX 11 Version 2.008
+	01.08.20   Allow for name change to allow multiple cameras of different names
+			   See dll.cpp for const WCHAR SpoutCamName[] and CLSID_SpoutCam
+			   Test build VS2017 and VS2019 
+			   Version 2.009
 
 */
 
@@ -228,7 +235,7 @@ CUnknown * WINAPI CVCam::CreateInstance(LPUNKNOWN lpunk, HRESULT *phr)
 	FILE * pCout = NULL;
 	AllocConsole();
 	freopen_s(&pCout, "CONOUT$", "w", stdout);
-	printf("SpoutCamDX ~~10-05-20 : VS2017 - Vers 2.007\n");
+	printf("SpoutCamDX ~~10-05-20 : VS2017 - Vers 2.008\n");
 	*/
 
     CUnknown *punk = new CVCam(lpunk, phr);
@@ -237,7 +244,7 @@ CUnknown * WINAPI CVCam::CreateInstance(LPUNKNOWN lpunk, HRESULT *phr)
 }
 
 CVCam::CVCam(LPUNKNOWN lpunk, HRESULT *phr) : 
-    CSource(NAME("SpoutCam"), lpunk, CLSID_SpoutCam)
+	CSource(NAME(SpoutCamName), lpunk, CLSID_SpoutCam)
 {
     ASSERT(phr);
 
@@ -245,7 +252,7 @@ CVCam::CVCam(LPUNKNOWN lpunk, HRESULT *phr) :
     
 	// Create the one and only output pin
     m_paStreams = (CSourceStream **)new CVCamStream*[1];
-    m_paStreams[0] = new CVCamStream(phr, this, L"SpoutCam");
+	m_paStreams[0] = new CVCamStream(phr, this, (LPCWSTR)&SpoutCamName);
 
 }
 
@@ -392,13 +399,13 @@ HRESULT STDMETHODCALLTYPE CVCam::Unregister( void)
 // all the stuff.
 //////////////////////////////////////////////////////////////////////////
 CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
-    CSourceStream(NAME("SpoutCam"), phr, pParent, pPinName), m_pParent(pParent)
+	CSourceStream(NAME(SpoutCamName), phr, pParent, pPinName), m_pParent(pParent)
 {
 	g_pd3dDevice    = nullptr;
 	bDXinitialized  = false; // DirectX
 	bMemoryMode		= false; // Default mode is texture, true means memoryshare
 	bInvert         = true;  // Not currently used
-	bInitialized	= false; // Spoutcam reiver
+	bInitialized	= false; // Spoutcam receiver
 	bDisconnected	= false; // Has to connect before can disconnect or it will never connect
 	g_Width			= 640;	 // give it an initial size - this will be changed if a sender is running at start
 	g_Height		= 480;

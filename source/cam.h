@@ -20,6 +20,7 @@
 #include <streams.h>
 
 EXTERN_C const GUID CLSID_SpoutCam;
+EXTERN_C const WCHAR SpoutCamName[MAX_PATH];
 
 class CVCamStream;
 class CVCam : public CSource
