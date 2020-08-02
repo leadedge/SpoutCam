@@ -48,6 +48,7 @@
 //		03.07.20	- Change OpenDirectX11 so it can be repeatedly called (see ReceiveImage)
 //		04.07.20	- OpenDirectX11 check in all sending functions
 //		09.07.20	- Correct ReadRGBpixels for RGBA senders
+//		02.08.20	- Remove console print from ReadRGBApixels
 //
 // ====================================================================================
 /*
@@ -913,9 +914,6 @@ bool spoutDX::ReadRGBpixels(ID3D11Texture2D* pStagingTexture,
 {
 	if (!m_pImmediateContext || !pStagingTexture || !pixels)
 		return false;
-
-	// LJ DEBUG
-	printf("Format = %d\n", m_dwFormat);
 
 	D3D11_MAPPED_SUBRESOURCE mappedSubResource;
 	// Map the resource so we can access the pixels

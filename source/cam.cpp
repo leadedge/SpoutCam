@@ -208,6 +208,9 @@
 			   See dll.cpp for const WCHAR SpoutCamName[] and CLSID_SpoutCam
 			   Test build VS2017 and VS2019 
 			   Version 2.009
+	02.08.20   Add special option to lock to a specific sender
+			   See: SetReceiverName
+			   Version 2.010
 
 */
 
@@ -235,7 +238,7 @@ CUnknown * WINAPI CVCam::CreateInstance(LPUNKNOWN lpunk, HRESULT *phr)
 	FILE * pCout = NULL;
 	AllocConsole();
 	freopen_s(&pCout, "CONOUT$", "w", stdout);
-	printf("SpoutCamDX ~~10-05-20 : VS2017 - Vers 2.008\n");
+	printf("SpoutCamDX ~~10-05-20 : VS2017 - Vers 2.010\n");
 	*/
 
     CUnknown *punk = new CVCam(lpunk, phr);
@@ -480,7 +483,15 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 	NumFrames = 0;
 	hwndButton = NULL; // ensure NULL of static variable for the OpenGL window handle
 
-	receiver.SetSenderName("Spout DX11 Sender");
+	//
+	// Special purpose option : Lock to a specific sender
+	//
+	// SpoutCam will only connect to the name specied.
+	// Any other sender is ignored and SpoutCam will produce static.
+	// SpoutCam can be started before or after the sender.
+	// Leave this out for SpoutCam to detect to any sender.
+	//
+	// receiver.SetReceiverName("Spout DX11 Sender"); // Specify the sender name here
 
 }
 
