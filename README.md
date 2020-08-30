@@ -10,7 +10,7 @@ The Master branch contains a version of SpoutCam based on DirectX. The project r
 
 ### OpenGL version
 
-The OpenGL branch contains a version of SpoutCam based on OpenGL. The OpenGL version may not be updated after 2.007 release.
+The OpenGL branch contains the original version of SpoutCam based on OpenGL. The OpenGL version may not be updated after 2.007 release.
 
 ### Output folder
 
