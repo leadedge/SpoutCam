@@ -1,0 +1,35 @@
+﻿  amextra.cpp
+  amfilter.cpp
+  amvideo.cpp
+  arithutil.cpp
+  combase.cpp
+  cprop.cpp
+  ctlutil.cpp
+  ddmm.cpp
+  dllentry.cpp
+  dllsetup.cpp
+  mtype.cpp
+  outputq.cpp
+  perflog.cpp
+  pstream.cpp
+  pullpin.cpp
+  refclock.cpp
+  renbase.cpp
+  schedule.cpp
+  seekpt.cpp
+  source.cpp
+  Generating Code...
+  Compiling...
+  strmctl.cpp
+  sysclock.cpp
+  transfrm.cpp
+  transip.cpp
+  videoctl.cpp
+  vtrans.cpp
+  winctrl.cpp
+  winutil.cpp
+  wxdebug.cpp
+  wxlist.cpp
+  wxutil.cpp
+  Generating Code...
+  BaseClasses.vcxproj -> D:\OPENFRAMEWORKS110VS\apps\SpoutSDK\SpoutCam2017\lib\x64\Release\BaseClasses.lib

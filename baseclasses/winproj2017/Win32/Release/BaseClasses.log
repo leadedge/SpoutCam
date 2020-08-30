@@ -1,0 +1,39 @@
+﻿  amextra.cpp
+  amfilter.cpp
+  amvideo.cpp
+  arithutil.cpp
+  combase.cpp
+  cprop.cpp
+  ctlutil.cpp
+  ddmm.cpp
+  dllentry.cpp
+d:\openframeworks110vs\apps\spoutsdk\spoutcam2017\baseclasses\source\dllentry.cpp(314): warning C4996: 'GetVersionExW': was declared deprecated
+  c:\program files (x86)\windows kits\10\include\10.0.17763.0\um\sysinfoapi.h(387): note: see declaration of 'GetVersionExW'
+  dllsetup.cpp
+  mtype.cpp
+  outputq.cpp
+  perflog.cpp
+  pstream.cpp
+  pullpin.cpp
+  refclock.cpp
+  renbase.cpp
+  schedule.cpp
+  seekpt.cpp
+  source.cpp
+  Generating Code...
+  Compiling...
+  strmctl.cpp
+  sysclock.cpp
+  transfrm.cpp
+  transip.cpp
+  videoctl.cpp
+  vtrans.cpp
+  winctrl.cpp
+  winutil.cpp
+  wxdebug.cpp
+  wxlist.cpp
+  wxutil.cpp
+d:\openframeworks110vs\apps\spoutsdk\spoutcam2017\baseclasses\source\wxutil.cpp(755): warning C4996: 'GetVersionExW': was declared deprecated
+  c:\program files (x86)\windows kits\10\include\10.0.17763.0\um\sysinfoapi.h(387): note: see declaration of 'GetVersionExW'
+  Generating Code...
+  BaseClasses.vcxproj -> D:\OPENFRAMEWORKS110VS\apps\SpoutSDK\SpoutCam2017\lib\Win32\Release\BaseClasses.lib

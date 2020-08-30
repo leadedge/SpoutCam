@@ -8,8 +8,8 @@
 #define _VER_MAJORVERSION 2				    
 #define _VER_MAJORVERSION_STRING "2"
 
-#define _VER_MINORVERSION 1
-#define _VER_MINORVERSION_STRING ".009"     
+#define _VER_MINORVERSION 0
+#define _VER_MINORVERSION_STRING ".0000"     
 														
 #define _VER_BUGFIXVERSION 0
 #define _VER_BUGFIXVERSION_STRING "0"

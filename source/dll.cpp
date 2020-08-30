@@ -35,45 +35,16 @@
 STDAPI AMovieSetupRegisterServer( CLSID clsServer, LPCWSTR szDescription, LPCWSTR szFileName, LPCWSTR szThreadingModel = L"Both", LPCWSTR szServerType     = L"InprocServer32" );
 STDAPI AMovieSetupUnregisterServer( CLSID clsServer );
 
-//
-// The NAME OF THE CAMERA CAN BE CHANGED HERE
-//
-const WCHAR SpoutCamName[] = L"SpoutCam";
-
-//
-// THE CLSID CAN BE CHANGED HERE
-//
-// For multiple cameras :
-//
-// 1) Change the name as above
-// 2) Increment the last value of the CLSID e.g. 0x33, 0x34 etc.
-//
-// Then a separate camera with a different name and CLSID can be registered.
-// Importantly, the resulting ".ax" files should be saved in different locations
-// with different file names, so that they can be registered/unregistered separately.
-// Match the file name with the camera name above to keep track of what you are doing.
-// 
-// You must use regsvr32 for registration.
-// SpoutCamSettings is hard-coded for SpoutCam but can still be used to set fps
-// and resolution. These settings are recorded in the registry and will be 
-// picked up by all versions of SpoutCam, regardless of the name.
-//
-// When returning to the default SpoutCam, change the CLSID to back to the original
 // {8E14549A-DB61-4309-AFA1-3578E927E933}
-// 0x8e14549a, 0xdb61, 0x4309, 0xaf, 0xa1, 0x35, 0x78, 0xe9, 0x27, 0xe9, 0x33
-//
-DEFINE_GUID(CLSID_SpoutCam, 0x8e14549a, 0xdb61, 0x4309, 0xaf, 0xa1, 0x35, 0x78, 0xe9, 0x27, 0xe9, 0x33);
-
+DEFINE_GUID(CLSID_SpoutCam,
+            0x8e14549a, 0xdb61, 0x4309, 0xaf, 0xa1, 0x35, 0x78, 0xe9, 0x27, 0xe9, 0x33);
 
 //
-// TODO
-//
-// SpoutCam filter property page
 // https://msdn.microsoft.com/en-us/library/dd377627%28v=vs.85%29.aspx
 //
+// SpoutCam filter property page : TODO
 // F0B09553-7B71-49D5-9E04-9DE0A0987144
 // DEFINE_GUID(CLSID_SaturationProp, 0xF0B09553, 0x7B71, 0x49D5, 0x9E, 0x04, 0x9D, 0xE0, 0xA0, 0x98, 0x71, 0x44);
-
 
 const AMOVIESETUP_MEDIATYPE AMSMediaTypesVCam = 
 { 
@@ -97,7 +68,7 @@ const AMOVIESETUP_PIN AMSPinVCam=
 const AMOVIESETUP_FILTER AMSFilterVCam =
 {
     &CLSID_SpoutCam,	// Filter CLSID
-	SpoutCamName,		// String name
+    L"SpoutCam",		// String name
     MERIT_DO_NOT_USE,   // Filter merit
 						// Recommended for capture (http://msdn.microsoft.com/en-us/library/windows/desktop/dd388793%28v=vs.85%29.aspx)
     1,                  // Number pins
@@ -107,7 +78,7 @@ const AMOVIESETUP_FILTER AMSFilterVCam =
 CFactoryTemplate g_Templates[] = 
 {
     {
-		SpoutCamName,
+        L"SpoutCam",
         &CLSID_SpoutCam,
         CVCam::CreateInstance,
         NULL,
@@ -145,7 +116,7 @@ STDAPI RegisterFilters( BOOL bRegister )
     hr = CoInitialize(0);
     if(bRegister)
     {
-		hr = AMovieSetupRegisterServer(CLSID_SpoutCam, SpoutCamName, achFileName, L"Both", L"InprocServer32");
+        hr = AMovieSetupRegisterServer(CLSID_SpoutCam, L"SpoutCam", achFileName, L"Both", L"InprocServer32");
     }
 
     if( SUCCEEDED(hr) )
@@ -162,7 +133,7 @@ STDAPI RegisterFilters( BOOL bRegister )
                 rf2.dwMerit = MERIT_DO_NOT_USE;
                 rf2.cPins = 1;
                 rf2.rgPins = &AMSPinVCam;
-				hr = fm->RegisterFilter(CLSID_SpoutCam, SpoutCamName, &pMoniker, &CLSID_VideoInputDeviceCategory, NULL, &rf2);
+                hr = fm->RegisterFilter(CLSID_SpoutCam, L"SpoutCam", &pMoniker, &CLSID_VideoInputDeviceCategory, NULL, &rf2);
             }
             else
             {

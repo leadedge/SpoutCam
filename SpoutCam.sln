@@ -1,0 +1,55 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.27703.2018
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SpoutCam", "SpoutCam.vcxproj", "{A44243DA-9677-49A3-AC13-689EAA8A4E9D}"
+	ProjectSection(ProjectDependencies) = postProject
+		{62631E0D-AB94-4E97-AF8B-63E7E108C30E} = {62631E0D-AB94-4E97-AF8B-63E7E108C30E}
+		{E8A3F6FA-AE1C-4C8E-A0B6-9C8480324EAA} = {E8A3F6FA-AE1C-4C8E-A0B6-9C8480324EAA}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SpoutSDK", "SpoutSDK\winproj2017\SpoutSDK.vcxproj", "{62631E0D-AB94-4E97-AF8B-63E7E108C30E}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "BaseClasses", "baseclasses\winproj2017\BaseClasses.vcxproj", "{E8A3F6FA-AE1C-4C8E-A0B6-9C8480324EAA}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A44243DA-9677-49A3-AC13-689EAA8A4E9D}.Debug|x64.ActiveCfg = Debug|x64
+		{A44243DA-9677-49A3-AC13-689EAA8A4E9D}.Debug|x64.Build.0 = Debug|x64
+		{A44243DA-9677-49A3-AC13-689EAA8A4E9D}.Debug|x86.ActiveCfg = Debug|Win32
+		{A44243DA-9677-49A3-AC13-689EAA8A4E9D}.Debug|x86.Build.0 = Debug|Win32
+		{A44243DA-9677-49A3-AC13-689EAA8A4E9D}.Release|x64.ActiveCfg = Release|x64
+		{A44243DA-9677-49A3-AC13-689EAA8A4E9D}.Release|x64.Build.0 = Release|x64
+		{A44243DA-9677-49A3-AC13-689EAA8A4E9D}.Release|x86.ActiveCfg = Release|Win32
+		{A44243DA-9677-49A3-AC13-689EAA8A4E9D}.Release|x86.Build.0 = Release|Win32
+		{62631E0D-AB94-4E97-AF8B-63E7E108C30E}.Debug|x64.ActiveCfg = Debug|x64
+		{62631E0D-AB94-4E97-AF8B-63E7E108C30E}.Debug|x64.Build.0 = Debug|x64
+		{62631E0D-AB94-4E97-AF8B-63E7E108C30E}.Debug|x86.ActiveCfg = Debug|Win32
+		{62631E0D-AB94-4E97-AF8B-63E7E108C30E}.Debug|x86.Build.0 = Debug|Win32
+		{62631E0D-AB94-4E97-AF8B-63E7E108C30E}.Release|x64.ActiveCfg = Release|x64
+		{62631E0D-AB94-4E97-AF8B-63E7E108C30E}.Release|x64.Build.0 = Release|x64
+		{62631E0D-AB94-4E97-AF8B-63E7E108C30E}.Release|x86.ActiveCfg = Release|Win32
+		{62631E0D-AB94-4E97-AF8B-63E7E108C30E}.Release|x86.Build.0 = Release|Win32
+		{E8A3F6FA-AE1C-4C8E-A0B6-9C8480324EAA}.Debug|x64.ActiveCfg = Debug|x64
+		{E8A3F6FA-AE1C-4C8E-A0B6-9C8480324EAA}.Debug|x64.Build.0 = Debug|x64
+		{E8A3F6FA-AE1C-4C8E-A0B6-9C8480324EAA}.Debug|x86.ActiveCfg = Debug|Win32
+		{E8A3F6FA-AE1C-4C8E-A0B6-9C8480324EAA}.Debug|x86.Build.0 = Debug|Win32
+		{E8A3F6FA-AE1C-4C8E-A0B6-9C8480324EAA}.Release|x64.ActiveCfg = Release|x64
+		{E8A3F6FA-AE1C-4C8E-A0B6-9C8480324EAA}.Release|x64.Build.0 = Release|x64
+		{E8A3F6FA-AE1C-4C8E-A0B6-9C8480324EAA}.Release|x86.ActiveCfg = Release|Win32
+		{E8A3F6FA-AE1C-4C8E-A0B6-9C8480324EAA}.Release|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {BB0F38FE-4B08-4513-8CC5-DB6098F598B6}
+	EndGlobalSection
+EndGlobal

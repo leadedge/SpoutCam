@@ -1,0 +1,13 @@
+﻿  SpoutCopy.cpp
+  SpoutDirectX.cpp
+  SpoutFrameCount.cpp
+  SpoutGLDXinterop.cpp
+  SpoutGLextensions.cpp
+  SpoutMemoryShare.cpp
+  SpoutReceiver.cpp
+  SpoutSDK.cpp
+  SpoutSender.cpp
+  SpoutSenderNames.cpp
+  SpoutSharedMemory.cpp
+  SpoutUtils.cpp
+  SpoutSDK.vcxproj -> D:\OPENFRAMEWORKS110VS\apps\SpoutSDK\SpoutCam2017\lib\Win32\Release\Spout.lib
