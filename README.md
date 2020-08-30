@@ -6,7 +6,11 @@ This project extends the original SpoutCam project and is based on the considera
 
 ### DirectX version
 
-The project requires some but not all of the files from the Spout SDK, currently the Beta branch for Version 2.007. Not all files are needed because the project has been revised to use DirectX 11 instead of OpenGL. The SpoutDX class manages these functions. The files required are included in this repository and can be updated from the [beta branch](https://github.com/leadedge/Spout2/tree/beta/SPOUTSDK/SpoutSDK) if necessary.
+The Master branch contains a version of SpoutCam based on DirectX. The project requires some but not all of the files from the Spout SDK, currently the Beta branch for Version 2.007. Not all files are needed because the project has been revised to use DirectX 11 instead of OpenGL. The SpoutDX class manages these functions. The files required are included in this repository and can be updated from the [beta branch](https://github.com/leadedge/Spout2/tree/beta/SPOUTSDK/SpoutSDK) if necessary.
+
+### OpenGL version
+
+The OpenGL branch contains a version of SpoutCam based on OpenGL. The OpenGL version may not be updated after 2.007 release.
 
 ### Output folder
 
