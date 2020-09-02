@@ -16,6 +16,18 @@
 
 #define DECLARE_PTR(type, ptr, expr) type* ptr = (type*)(expr);
 
+
+// leak checking
+// http://www.codeproject.com/Articles/9815/Visual-Leak-Detector-Enhanced-Memory-Leak-Detectio
+//
+// #include "libs\vld.h"
+//
+// http://msdn.microsoft.com/en-us/library/x98tx3cf%28VS.71%29.aspx
+//
+#define CRTDBG_MAP_ALLOC
+#include <stdlib.h>
+#include <crtdbg.h>
+
 #include "..\SpoutDX\source\SpoutDX.h"
 #include <streams.h>
 

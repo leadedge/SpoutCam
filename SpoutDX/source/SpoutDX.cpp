@@ -49,6 +49,9 @@
 //		04.07.20	- OpenDirectX11 check in all sending functions
 //		09.07.20	- Correct ReadRGBpixels for RGBA senders
 //		02.08.20	- Remove console print from ReadRGBApixels
+//		02.09.20	- Revise ReadRGBpixels for SpoutCam 
+//					  Only use OpenDX11shareHandle if the sender texture changes size
+//					  to avoid a memory leak (https://github.com/leadedge/SpoutCam/issues/2)
 //
 // ====================================================================================
 /*
@@ -433,7 +436,7 @@ bool spoutDX::ReceiveTexture(ID3D11Texture2D** ppTexture)
 		if (m_bUpdated)
 			return true;
 
-		// The receiving texture is created on the first update
+		// The application receiving texture is created on the first update
 		ID3D11Texture2D* pTexture = *ppTexture;
 		if (!pTexture)
 			return false;
@@ -565,14 +568,22 @@ bool spoutDX::ReceiveRGBimage(unsigned char * pData, unsigned int width, unsigne
 	if (ReceiveSenderData()) {
 		// If a new sender has been found or the one connected has changed,
 		// the receiving staging texture has to be reset.
-		// The staging texture is the pixel data source and must be the same
-		// size and format as the sender
+		// The staging texture must be the same size and format as the sender
 		if (m_bUpdated) {
-			// Return to update the receiving image pixels if necessary
-			// If the receiving image is still a different size
-			// ReadRGBpixels will use resampling to copy from the staging texture
+			// The sender name, width, height or format have changed
 			if (m_SenderName[0] && m_Width > 0 && m_Height > 0 && m_dwFormat > 0) {
-				CheckStagingTexture(m_Width, m_Height, m_dwFormat);
+				// The sender share handle is retrieved by ReceiveSenderData()
+				// Get a new pointer to the sender shared texture for access by this device
+				if(m_pSharedTexture) m_pSharedTexture->Release();
+				m_pSharedTexture = nullptr;
+				if (spoutdx.OpenDX11shareHandle(m_pd3dDevice, &m_pSharedTexture, m_dxShareHandle)) {
+					// Create a new staging texture if it is a different size
+					CheckStagingTexture(m_Width, m_Height, m_dwFormat);
+				}
+				else {
+					// Failed to get the sender's texture pointer
+					return false;
+				}
 				return true;
 			}
 			else {
@@ -588,22 +599,20 @@ bool spoutDX::ReceiveRGBimage(unsigned char * pData, unsigned int width, unsigne
 		// Found a sender
 		//
 
-		// Get the sender shared texture pointer
-		if (spoutdx.OpenDX11shareHandle(m_pd3dDevice, &m_pSharedTexture, m_dxShareHandle)) {
-			// Access the sender shared texture
-			if (frame.CheckTextureAccess(m_pSharedTexture)) {
-				// Check if the sender has produced a new frame.
-				if (frame.GetNewFrame()) {
-					// Copy from the sender's shared texture to the staging texture.
-					m_pImmediateContext->CopyResource(m_pStagingTexture, m_pSharedTexture);
-					// Map the staging texture to retrieve the pixels
-					ReadRGBpixels(m_pStagingTexture, pData, width, height, bInvert);
-				}
+		// Access the sender shared texture
+		if (frame.CheckTextureAccess(m_pSharedTexture)) {
+			// Check if the sender has produced a new frame.
+			if (frame.GetNewFrame()) {
+				// Copy from the sender's shared texture to the staging texture.
+				m_pImmediateContext->CopyResource(m_pStagingTexture, m_pSharedTexture);
+				// Map the staging texture and retrieve the pixels
+				ReadRGBpixels(m_pStagingTexture, pData, width, height, bInvert);
 			}
-			// Allow access to the shared texture
-			frame.AllowTextureAccess(m_pSharedTexture);
 		}
+		// Allow access to the shared texture
+		frame.AllowTextureAccess(m_pSharedTexture);
 		m_bConnected = true;
+
 	} // sender exists
 	else {
 		// There is no sender or the connected sender closed.
@@ -915,31 +924,37 @@ bool spoutDX::ReadRGBpixels(ID3D11Texture2D* pStagingTexture,
 	if (!m_pImmediateContext || !pStagingTexture || !pixels)
 		return false;
 
-	D3D11_MAPPED_SUBRESOURCE mappedSubResource;
 	// Map the resource so we can access the pixels
+	D3D11_MAPPED_SUBRESOURCE mappedSubResource;
 	// Make sure all commands are done before mapping the staging texture
 	m_pImmediateContext->Flush();
 	HRESULT hr = m_pImmediateContext->Map(pStagingTexture, 0, D3D11_MAP_READ, 0, &mappedSubResource);
 	if (SUCCEEDED(hr)) {
-		// Write the staging texture to the user pixel buffer
-		// If the texture format is RGBA it has to be converted to BGR for the staging texture copy
+		// Copy the staging texture pixels to the user buffer
 		if (m_dwFormat == 28) {
-			if (width != m_Width || height != m_Height)
+			// If the texture format is RGBA it has to be converted to BGR for the staging texture copy
+			if (width != m_Width || height != m_Height) {
 				spoutcopy.rgba2bgrResample(mappedSubResource.pData, pixels, m_Width, m_Height, mappedSubResource.RowPitch, width, height, bInvert);
-			else
+			}
+			else {
 				spoutcopy.rgba2bgr(mappedSubResource.pData, pixels, m_Width, m_Height, mappedSubResource.RowPitch, bInvert);
+			}
 		}
 		else {
-			if (width != m_Width || height != m_Height)
+			if (width != m_Width || height != m_Height) {
 				spoutcopy.rgba2rgbResample(mappedSubResource.pData, pixels, m_Width, m_Height, mappedSubResource.RowPitch, width, height, bInvert);
-			else
+			}
+			else {
 				spoutcopy.rgba2rgb(mappedSubResource.pData, pixels, m_Width, m_Height, mappedSubResource.RowPitch, bInvert);
+			}
 		}
 		m_pImmediateContext->Unmap(m_pStagingTexture, 0);
+
 		return true;
 	} // endif DX11 map OK
 
 	return false;
+
 } // end ReadRGBpixels
 
 

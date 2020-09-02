@@ -211,6 +211,12 @@
 	02.08.20   Add special option to lock to a specific sender
 			   See: SetReceiverName
 			   Version 2.010
+	3.08.20	   Improved efficiency of ReceiveRGBimage via spoutCopy::rgba2rgb
+			   Version 2.011
+	02.09.20   Revise ReadRGBpixels in SpoutDX.cpp to avoid memory leak
+			   (https://github.com/leadedge/SpoutCam/issues/2)
+			   Xor-shift random function to speed up static image
+			   Version 2.012
 
 */
 
@@ -226,6 +232,19 @@
 
 static HWND hwndButton = NULL; // dummy window for opengl context
 
+// This is just a fast rand so that the static image isn't too slow for higher resolutions
+// Based on Marsaglia's xorshift generator (http://www.jstatsoft.org/v08/i14/paper)
+// and copied from (https://excamera.com/sphinx/article-xorshift.html)
+uint32_t seed = 7; // 100% random seed value
+static uint32_t xorshiftRand()
+{
+	seed ^= seed << 13;
+	seed ^= seed >> 17;
+	seed ^= seed << 5;
+	return seed;
+}
+
+
 //////////////////////////////////////////////////////////////////////////
 //  CVCam is the source filter which masquerades as a capture device
 //////////////////////////////////////////////////////////////////////////
@@ -238,7 +257,7 @@ CUnknown * WINAPI CVCam::CreateInstance(LPUNKNOWN lpunk, HRESULT *phr)
 	FILE * pCout = NULL;
 	AllocConsole();
 	freopen_s(&pCout, "CONOUT$", "w", stdout);
-	printf("SpoutCamDX ~~10-05-20 : VS2017 - Vers 2.010\n");
+	printf("SpoutCamDX ~~ Vers 2.012\n");
 	*/
 
     CUnknown *punk = new CVCam(lpunk, phr);
@@ -622,7 +641,7 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 	unsigned int imagesize, width, height;
 	long l, lDataLen;
 	bool bResult = false;
-	HRESULT hr=S_OK;;
+	HRESULT hr=S_OK;
     BYTE *pData;
 
 	VIDEOINFOHEADER *pvi = (VIDEOINFOHEADER *) m_mt.Format();
@@ -702,8 +721,8 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 
 	// Get the current frame size for texture transfers
     imagesize = (unsigned int)pvi->bmiHeader.biSizeImage;
-	width = (unsigned int)pvi->bmiHeader.biWidth;
-	height = (unsigned int)pvi->bmiHeader.biHeight;
+	width     = (unsigned int)pvi->bmiHeader.biWidth;
+	height    = (unsigned int)pvi->bmiHeader.biHeight;
 	if(width == 0 || height == 0)
 		return NOERROR;
 
@@ -746,18 +765,23 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 		// Get bgr pixels from the sender bgra shared texture
 		// ReceiveRGBimage handles sender detection, connection and copy of pixels
 		if (receiver.ReceiveRGBimage(pData, g_Width, g_Height, true)) {
-			// If IsUpdated() returns true, the sender or sender size has changed
+			// If IsUpdated() returns true, the sender has changed
 			if (receiver.IsUpdated()) {
 				if (strcmp(g_SenderName, receiver.GetSenderName()) != 0) {
+					// Only test for change of sender name.
+					// The pixel buffer (pData) remains the same size and 
+					// ReceiveRGBimage uses resampling for a different texture size
 					strcpy_s(g_SenderName, 256, receiver.GetSenderName());
-					// Set the sender to the registry for SpoutCamSettings
+					// Set the sender name to the registry for SpoutCamSettings
 					WritePathToRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "sendername", g_SenderName);
 				}
 			}
 			bInitialized = true;
 			NumFrames++;
+
 			return NOERROR;
 		}
+
 	} // endif not disconnected
 
 ShowStatic :
@@ -765,14 +789,16 @@ ShowStatic :
 	// drop through to default static image if it did not work
 	pms->GetPointer(&pData);
 	lDataLen = pms->GetSize();
-	for(l = 0; l <lDataLen; ++l) 
-		pData[l] = rand();
+	for (l = 0; l < lDataLen; ++l)
+		pData[l] = (char)xorshiftRand(); // rand();
 
 	NumFrames++;
 
 	return NOERROR;
 
 } // FillBuffer
+
+
 
 //
 // Notify
