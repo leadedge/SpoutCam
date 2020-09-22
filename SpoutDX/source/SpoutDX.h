@@ -72,6 +72,10 @@ class SPOUT_DLLEXP spoutDX {
 	bool SendTexture(ID3D11Texture2D* pTexture);
 	// Send an image
 	bool SendImage(unsigned char * pData, unsigned int width, unsigned int height);
+	// Sender status
+	bool IsInitialized();
+	// Sender name
+	const char * GetName();
 	// Get width
 	unsigned int GetWidth();
 	// Get height
@@ -138,6 +142,8 @@ class SPOUT_DLLEXP spoutDX {
 	bool GetAdapterName(int index, char *adaptername, int maxchars); // Get an adapter name
 	int  GetAdapter(); // Get the current adapter index
 	bool SetAdapter(int index = 0); // Set required graphics adapter for output
+	int  GetSenderAdapter(const char* sendername); // Get sender adapter index in shared memory (0 default)
+	bool SetSenderAdapter(const char* sendername); // Set sender adapter index in shared memory
 
 	// Sharing modes not supported
 	bool GetDX9();
@@ -148,13 +154,12 @@ class SPOUT_DLLEXP spoutDX {
 		unsigned int width, unsigned int height,
 		DXGI_FORMAT format, ID3D11Texture2D** ppTexture);
 
+	spoutSenderNames spoutsender;
 	spoutFrameCount frame;
 	spoutDirectX spoutdx;
+	spoutCopy spoutcopy;
 
 protected :
-
-	spoutSenderNames spoutsender;
-	spoutCopy spoutcopy;
 
 	ID3D11Device* m_pd3dDevice;
 	ID3D11DeviceContext* m_pImmediateContext;
@@ -163,6 +168,7 @@ protected :
 	D3D11_MAPPED_SUBRESOURCE m_MappedSubResource;
 	HANDLE m_dxShareHandle;
 	DWORD m_dwFormat;
+	SharedTextureInfo m_SenderInfo;
 	char m_SenderNameSetup[256];
 	char m_SenderName[256];
 	unsigned int m_Width;
@@ -173,13 +179,13 @@ protected :
 	bool m_bSpoutInitialized;
 	bool m_bSpoutPanelOpened;
 	bool m_bSpoutPanelActive;
-	bool m_bMapped;
 	bool m_bClassDevice;
 	SHELLEXECUTEINFOA m_ShExecInfo;
 
 	bool ReceiveSenderData();
-	void CreateReceiver(const char * sendername, unsigned int width, unsigned int height);
-	bool ReadRGBpixels(ID3D11Texture2D* pStagingTexture, unsigned char* pixels, unsigned int width, unsigned int height, bool bInvert);
+	void CreateReceiver(const char * sendername, unsigned int width, unsigned int height, DWORD dwFormat);
+	bool ReadRGBApixels(ID3D11Texture2D* pStagingTexture, unsigned char* pixels, unsigned int width, unsigned int height, bool bInvert);
+	bool ReadRGBpixels (ID3D11Texture2D* pStagingTexture, unsigned char* pixels, unsigned int width, unsigned int height, bool bInvert);
 	bool CheckStagingTexture(unsigned int width, unsigned int height, DWORD dwFormat = DXGI_FORMAT_B8G8R8A8_UNORM);
 	bool CreateDX11StagingTexture(unsigned int width, unsigned int height, DXGI_FORMAT format, ID3D11Texture2D** pStagingTexture);
 	void SelectSenderPanel();

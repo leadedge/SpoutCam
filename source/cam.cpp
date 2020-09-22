@@ -217,6 +217,8 @@
 			   (https://github.com/leadedge/SpoutCam/issues/2)
 			   Xor-shift random function to speed up static image
 			   Version 2.012
+	22.09.20   Update with SpoutDX from develop branch
+			   Version 2.013
 
 */
 
@@ -257,7 +259,7 @@ CUnknown * WINAPI CVCam::CreateInstance(LPUNKNOWN lpunk, HRESULT *phr)
 	FILE * pCout = NULL;
 	AllocConsole();
 	freopen_s(&pCout, "CONOUT$", "w", stdout);
-	printf("SpoutCamDX ~~ Vers 2.012\n");
+	printf("SpoutCamDX ~~ Vers 2.013\n");
 	*/
 
     CUnknown *punk = new CVCam(lpunk, phr);

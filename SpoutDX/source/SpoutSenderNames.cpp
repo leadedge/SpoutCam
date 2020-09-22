@@ -54,6 +54,8 @@
 			   RegisterSenderName - check for exceed maximum number of senders
 			   SetMaxSenders - set max to the registry for other applications to read
 	25.02.20 - Correct FindSenderName. Always returned true for one sender.
+	21.07.20 - Change default max senders from 256 to 64
+	28.08.20 - Correct in SpoutSettings
 
 	- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 	Copyright (c) 2014-2020, Lynn Jarvis. All rights reserved.
@@ -89,8 +91,9 @@ spoutSenderNames::spoutSenderNames() {
 
 	// 15.09.18 - moved from interop class
 	// 06.06.19 - increase default maximum number of senders from 10 to 256
+	// 28.08.20 - decreased from 256 to 64
 	// Read the registry key if it exists
-	DWORD dwSenders = 256; // default maximum number of senders. 06-06-19 increased from 10
+	DWORD dwSenders = 64; // default maximum number of senders.
 	ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\Spout", "MaxSenders", &dwSenders);
 	// If the registry read fails, the default will be used
 	m_MaxSenders = (int)dwSenders;
@@ -173,6 +176,9 @@ bool spoutSenderNames::ReleaseSenderName(const char* Sendername)
 	std::string namestring;
 	char name[SpoutMaxSenderNameLen];
 
+	if (!Sendername[0])
+		return false;
+
 	// Create the shared memory for the sender name set if it does not exist
 	if(!CreateSenderSet()) return false;
 
@@ -195,11 +201,8 @@ bool spoutSenderNames::ReleaseSenderName(const char* Sendername)
 
 	// Get the current map to update the list
 	if(SenderNames.find(Sendername) != SenderNames.end() ) {
-
 		SenderNames.erase(Sendername); // erase the matching Sender
-
 		writeBufferFromSenderSet(SenderNames, pBuf, m_MaxSenders);
-
 		// Is there a set left ?
 		if(SenderNames.size() > 0) {
 			// This should be OK because the user selects the active sender
@@ -216,11 +219,11 @@ bool spoutSenderNames::ReleaseSenderName(const char* Sendername)
 		m_senderNames.Unlock();
 		return true;
 	}
-
 	m_senderNames.Unlock();
+
 	return false; // Sender name not in the set or no set in shared mempry
 
-} // end RemoveSender
+} // end ReleaseSenderName
 
 // Test to see if the Sender name exists in the sender set
 bool spoutSenderNames::FindSenderName(const char* Sendername)

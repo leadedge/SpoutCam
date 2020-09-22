@@ -44,7 +44,8 @@
 			   Correct const for some functions
 	30.06.20 - Use CopyPixels instead of copy loop in rgba2rgba
 	09.07.20 - Add rgba2rgb with source stride
-
+	07.09.20 - experimental SSE RGBA to RGB not working
+	19.09.20 - Removed experimental SSE RGBA to RGB function
 
 */
 #include "SpoutCopy.h"
@@ -299,12 +300,15 @@ void spoutCopy::CheckSSE()
 //
 void spoutCopy::rgba2bgra(const void *rgba_source, void *bgra_dest, unsigned int width, unsigned int height, bool bInvert) const
 {
-	if (m_bSSE2 && m_bSSSE3 && ((width % 16) == 0)) // SSE3 available and 16 byte aligned width
-		rgba_bgra_sse3(rgba_source, bgra_dest, width, height, bInvert);
-	else if (m_bSSE2) // SSE2 available
-		rgba_bgra_sse2(rgba_source, bgra_dest, width, height, bInvert);
-	else
+	if ((width % 16) == 0) { // 16 byte aligned width
+		if (m_bSSE2 && m_bSSSE3) // SSE3 available
+			rgba_bgra_sse3(rgba_source, bgra_dest, width, height, bInvert);
+		else if (m_bSSE2) // SSE2 available
+			rgba_bgra_sse2(rgba_source, bgra_dest, width, height, bInvert);
+	}
+	else {
 		rgba_bgra(rgba_source, bgra_dest, width, height, bInvert);
+	}
 }
 
 
@@ -608,7 +612,6 @@ void spoutCopy::rgba2rgb(const void *rgba_source, void *rgb_dest,
 	}
 
 	for (unsigned int y = 0; y < height; y++) {
-		/*
 		for (unsigned int x = 0; x < width; x++) {
 			*(rgb + 0) = *(rgba + 0); // red
 			*(rgb + 1) = *(rgba + 1); // grn
@@ -616,29 +619,14 @@ void spoutCopy::rgba2rgb(const void *rgba_source, void *rgb_dest,
 			rgb += 3;
 			rgba += 4;
 		}
-		*/
-
-		// Adapted from :
-		// https://stackoverflow.com/questions/7069090/convert-rgb-to-rgba-in-c
-		// Approximately 40% faster than byte by byte
-		// ~1.5-2 msec/frame at 1920x1080
-		for (unsigned int i = 0; i < width; i++, rgba += 4, rgb += 3) {
-			*reinterpret_cast<uint32_t*>(rgb) = *reinterpret_cast<const uint32_t*>(rgba);
-		}
-		// Get the last pixel
-		for (int j = 0; j < 3; ++j) {
-			rgb[j] = rgba[j];
-		}
-
-		// Correct for rgba pitch greater than width
 		rgba += rgba_padding;
 		
-		// Flip rgb image if required (move up a line)
 		if (bInvert)
-			rgb -= rgbpitch * 2;
+			rgb -= rgbpitch * 2; // move up a line for invert
 	}
 
 } // end rgba2rgb
+
 
 void spoutCopy::rgba2bgr(const void *rgba_source, void *bgr_dest, unsigned int width, unsigned int height, bool bInvert) const
 {
@@ -667,6 +655,7 @@ void spoutCopy::rgba2bgr(const void *rgba_source, void *bgr_dest, unsigned int w
 	}
 
 } // end rgba2bgr
+
 
 void spoutCopy::rgba2bgr(const void *rgba_source, void *bgr_dest,
 	unsigned int width, unsigned int height,
@@ -703,7 +692,6 @@ void spoutCopy::rgba2bgr(const void *rgba_source, void *bgr_dest,
 	}
 
 } // end rgba2bgr
-
 
 
 void spoutCopy::bgra2rgb(const void *bgra_source, void *rgb_dest, unsigned int width, unsigned int height, bool bInvert) const
