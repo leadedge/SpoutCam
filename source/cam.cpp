@@ -219,6 +219,11 @@
 			   Version 2.012
 	22.09.20   Update with SpoutDX from develop branch
 			   Version 2.013
+	28.09.20   Change GetMediatype for Zoom compatibility
+			   Limit to one position and start with position 0
+			   Change default fps from 60 to 30
+			   Update with latest SpoutDX from develop branch
+			   Version 2.014
 
 */
 
@@ -259,7 +264,7 @@ CUnknown * WINAPI CVCam::CreateInstance(LPUNKNOWN lpunk, HRESULT *phr)
 	FILE * pCout = NULL;
 	AllocConsole();
 	freopen_s(&pCout, "CONOUT$", "w", stdout);
-	printf("SpoutCamDX ~~ Vers 2.013\n");
+	printf("SpoutCamDX ~~ Vers 2.014\n");
 	*/
 
     CUnknown *punk = new CVCam(lpunk, phr);
@@ -442,11 +447,11 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 	//			10	0
 	//			15	1
 	//			25	2
-	//			30	3
+	//			30	3 (default)
+	// Compatibility problems with some software if > 60 fps
 	//			50	4
-	//			60	5 (default)
-
-	dwFps = 5;     // Fps from SpoutCamConfig (default 5 = 60)
+	//			60	5
+	dwFps = 3; // Fps from SpoutCamConfig (default 3 = 30)
 	if (!ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "fps", &dwFps)) {
 		dwFps = 3;
 		g_FrameTime = 166667;
@@ -468,15 +473,15 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 	//			1280 x 1024		9
 	//			1920 x 1080		10
 	//
-	dwResolution = 0;     // Resolution from SpoutCamConfig (default 0 = active sender)
+	dwResolution = 0; // Resolution from SpoutCamConfig (default 0 = active sender)
 	if (ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "resolution", &dwResolution)) {
 		// if there is no Sender, getmediatype will use
 		// the default resolution set by the user
 		SetResolution(dwResolution);
 	}
 
-	// No sender pre-defined - is one running ?
-	if(dwResolution == 0) { // Use active sender
+	// No resolution pre-defined - is a sender running ?
+	if(dwResolution == 0) {
 		// Use the active sender if any
 		if(receiver.GetActiveSender(g_SenderName)) {
 			unsigned int width, height;
@@ -496,9 +501,8 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 	m_Fps = dwFps;
 	m_Resolution = dwResolution;
 
-	// Set mediatype to shared width and height
-	// or if it did not connect set defaults set by the user
-	GetMediaType(4, &m_mt);
+	// Set mediatype to active sender width and height, or user defaults
+	GetMediaType(0, &m_mt);
 
 	NumDroppedFrames = 0;
 	NumFrames = 0;
@@ -832,16 +836,13 @@ HRESULT CVCamStream::GetMediaType(int iPosition, CMediaType *pmt)
 	if(iPosition < 0) {
 		return E_INVALIDARG;
 	}
-    if(iPosition > 8) { // TODO - needs work - only one position
+
+	if (iPosition > 1) {
 		return VFW_S_NO_MORE_ITEMS;
 	}
-	
-    if(iPosition == 0) {
-        *pmt = m_mt;
-        return S_OK;
-    }
 
-    DECLARE_PTR(VIDEOINFOHEADER, pvi, pmt->AllocFormatBuffer(sizeof(VIDEOINFOHEADER)));
+	
+	DECLARE_PTR(VIDEOINFOHEADER, pvi, pmt->AllocFormatBuffer(sizeof(VIDEOINFOHEADER)));
     ZeroMemory(pvi, sizeof(VIDEOINFOHEADER));
 
  	// Allow for default

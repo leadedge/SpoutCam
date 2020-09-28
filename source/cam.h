@@ -179,6 +179,7 @@ public:
 	
 	char g_SenderName[256];
 	char g_ActiveSender[256];    // The name of any Spout sender being received
+	char g_HostName[256];		 // The host for SpoutCam
 	ID3D11Device* g_pd3dDevice;  // DirectX 11.0 device pointer
 	bool bMemoryMode;            // true = memory, false = texture
 	bool bInvert;
