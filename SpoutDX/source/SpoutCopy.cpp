@@ -76,28 +76,22 @@ void spoutCopy::CopyPixels(const unsigned char *source,
 		Size = width*height * 3;
 
 	if (bInvert) {
-		// printf("flip\n");
 		FlipBuffer(source, dest, width, height, glFormat);
 	}
 	else {
-		// if (width < 320 || height < 240) { // Too small for assembler
 		if (width < 320) { // Too small for assembler
-			// printf("memcpy\n");
 			memcpy(reinterpret_cast<void *>(dest),
 				reinterpret_cast<const void *>(source), Size);
 		}
 		else if ((Size % 16) == 0 && m_bSSE2) { // 16 byte aligned SSE assembler
-			// printf("memcpy_sse2\n");
 			memcpy_sse2(reinterpret_cast<void *>(dest),
 				reinterpret_cast<const void *>(source), Size);
 		}
 		else if ((Size % 4) == 0) { // 4 byte aligned assembler
-			// printf("_movsd\n");
 			__movsd(reinterpret_cast<unsigned long *>(dest),
 				reinterpret_cast<const unsigned long *>(source), Size / 4);
 		}
 		else { // Default is standard memcpy
-			// printf("memcpy (2)\n");
 			memcpy(reinterpret_cast<void *>(dest),
 				reinterpret_cast<const void *>(source), Size);
 		}

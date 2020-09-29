@@ -165,6 +165,7 @@ bool SpoutSharedMemory::Open(const char* name)
 	m_pName = _strdup(name);
 	m_size = 0;
 
+
 	return true;
 
 }

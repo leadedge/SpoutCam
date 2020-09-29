@@ -179,7 +179,6 @@ public:
 	
 	char g_SenderName[256];
 	char g_ActiveSender[256];    // The name of any Spout sender being received
-	char g_HostName[256];		 // The host for SpoutCam
 	ID3D11Device* g_pd3dDevice;  // DirectX 11.0 device pointer
 	bool bMemoryMode;            // true = memory, false = texture
 	bool bInvert;
@@ -195,13 +194,13 @@ public:
 
 	DWORD dwFps;					// Fps from SpoutCamConfig
 	DWORD dwResolution;				// Resolution from SpoutCamConfig
-	DWORD dwLock;                    // Fix to the selected resolution
+	DWORD dwLock;                   // Fix to the selected resolution
 	int g_FrameTime;                // Frame time to use based on fps selection
 
 private:
 
 	CVCam *m_pParent;
-	long  NumDroppedFrames,NumFrames;
+	long long NumDroppedFrames, NumFrames;
 	REFERENCE_TIME 
 		m_rtLastTime,	// running timestamp
 		refSync1,		// Graphmanager clock time, to compute dropped frames.

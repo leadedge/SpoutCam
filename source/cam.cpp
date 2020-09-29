@@ -17,7 +17,7 @@
 	"SpoutCam" is free software: 
 	you can redistribute it and/or modify it under the terms of the GNU
 	Lesser General Public License as published by the Free Software Foundation, 
-	either version 3 of the License, or (at your option) any later version.
+	either version 3 of the Licensfilbe, or (at your option) any later version.
 
 	Credit for original capture source filter authored by Vivek :
 
@@ -223,7 +223,13 @@
 			   Limit to one position and start with position 0
 			   Change default fps from 60 to 30
 			   Update with latest SpoutDX from develop branch
-			   Version 2.014
+			   Version 2.014 - GitHub commit
+	29.09.20   Add ReleaseReceiver if ReceiveRGBimage fails
+			   Change default frame time to 333333 (30fps)
+			   Change back to simple timing in FillBuffer due to freeze with Zoom
+			   Add duration and Sleep to keep cycle correct
+			   TODO : compatibility check with other hosts
+			   Version 2.015
 
 */
 
@@ -264,7 +270,7 @@ CUnknown * WINAPI CVCam::CreateInstance(LPUNKNOWN lpunk, HRESULT *phr)
 	FILE * pCout = NULL;
 	AllocConsole();
 	freopen_s(&pCout, "CONOUT$", "w", stdout);
-	printf("SpoutCamDX ~~ Vers 2.014\n");
+	printf("SpoutCamDX ~~ Vers 2.015\n");
 	*/
 
     CUnknown *punk = new CVCam(lpunk, phr);
@@ -454,7 +460,7 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 	dwFps = 3; // Fps from SpoutCamConfig (default 3 = 30)
 	if (!ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "fps", &dwFps)) {
 		dwFps = 3;
-		g_FrameTime = 166667;
+		g_FrameTime = 333333;
 	}
 	else {
 		SetFps(dwFps);
@@ -504,8 +510,8 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 	// Set mediatype to active sender width and height, or user defaults
 	GetMediaType(0, &m_mt);
 
-	NumDroppedFrames = 0;
-	NumFrames = 0;
+	NumDroppedFrames = 0LL;
+	NumFrames = 0LL;
 	hwndButton = NULL; // ensure NULL of static variable for the OpenGL window handle
 
 	//
@@ -526,9 +532,9 @@ void CVCamStream::SetFps(DWORD dwFps)
 	// 0 - 10fps = 1000000
 	// 1 - 15fps =  666667
 	// 2 - 25fps =  400000
-	// 3 - 30fps =  333333
+	// 3 - 30fps =  333333 (default)
 	// 4 - 50fps =  200000
-	// 5 - 60fps =  166667 (default)
+	// 5 - 60fps =  166667
 	switch(dwFps) {
 		case 0 :
 			g_FrameTime = 1000000; // 10
@@ -549,7 +555,7 @@ void CVCamStream::SetFps(DWORD dwFps)
 			g_FrameTime = 166667; // 60
 			break;
 		default :
-			g_FrameTime = 166667; // default 60
+			g_FrameTime = 333333; // default 30
 			break;
 	}
 }
@@ -644,11 +650,11 @@ HRESULT CVCamStream::QueryInterface(REFIID riid, void **ppv)
 //////////////////////////////////////////////////////////////////////////
 HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 {
-	unsigned int imagesize, width, height;
-	long l, lDataLen;
+	unsigned int imagesize, width, height = 0U;
+	long l, lDataLen = 0L;
 	bool bResult = false;
-	HRESULT hr=S_OK;
-    BYTE *pData;
+	HRESULT hr = S_OK;
+    BYTE *pData = nullptr;
 
 	VIDEOINFOHEADER *pvi = (VIDEOINFOHEADER *) m_mt.Format();
 
@@ -657,68 +663,32 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 		return S_FALSE;
 	}
 
-	// first get the timing right
-	// create some working info
-	REFERENCE_TIME rtNow, rtDelta, rtDelta2=0; // delta for dropped, delta 2 for sleep.
-	REFERENCE_TIME avgFrameTime = ((VIDEOINFOHEADER*)m_mt.pbFormat)->AvgTimePerFrame;
-	
-	// What Time is it REALLY ???
-	// m_pClock is returned NULL with Skype, but OK for YawCam and VLC
-	m_pParent->GetSyncSource(&m_pClock); 
-	if(m_pClock) {
-		m_pClock->GetTime(&refSync1);
-		m_pClock->Release();
-	}
-	else {
-		// refSync1 = NumFrames*avgFrameTime;
-		// 14.01.20 - if no clock, refSync1 was calculated as the number of
-		// frames x avgFrametime which is the same as the calculated stream time.
-		// So use system time instead to get the system time in milliseconds.
-		// This is OK because Sleep() is used for frame delay.
-		// Convert to 100-nanosecond units (1 msec = 1000000 ns)
-		refSync1 = (REFERENCE_TIME)(timeGetTime() * 10000);
-	}
-
-	if(NumFrames <= 1) {
-		// initiate values
-		refStart = refSync1; // FirstFrame No Drop.
-		refSync2 = 0;
- 	}
-
+	//
+	// Simple timing as per original Vcam
+	// https://github.com/johnmaccormick/MultiCam/blob/master/vcam/Filters.cpp
+	// Freezes with with VLC. OK for Zoom.
+	//
 	// Set the timestamps that will govern playback frame rate.
-    // The current time is the sample's start
+	//
+	// The current time is the sample's start
+	REFERENCE_TIME rtNow = m_rtLastTime;
+	REFERENCE_TIME avgFrameTime = ((VIDEOINFOHEADER*)m_mt.pbFormat)->AvgTimePerFrame;
 	rtNow = m_rtLastTime;
-	m_rtLastTime = avgFrameTime + m_rtLastTime;
-	
-	// IAMDropppedFrame. We only have avgFrameTime to generate image.
-	// Find generated stream time and compare to real elapsed time
-	rtDelta=((refSync1-refStart)-(((NumFrames)*avgFrameTime)-avgFrameTime));
-
-	if(rtDelta-refSync2 < 0) { 
-		//we are early
-		rtDelta2=rtDelta-refSync2;
-		if (abs(rtDelta2 / 10000) >= 1) {
-			// Sleep is msec precision
-			Sleep((DWORD)abs(rtDelta2 / 10000));
-		}
-	} // endif (rtDelta-refSync2 < 0)
-	else if(rtDelta/avgFrameTime>NumDroppedFrames) {
-		// new dropped frame
-		NumDroppedFrames = rtDelta/avgFrameTime;
-		// Figure new RT for sleeping
-		refSync2 = NumDroppedFrames*avgFrameTime;
-		// Our time stamping needs adjustment.
-		// Find total real stream time from start time
-		rtNow = refSync1-refStart;
-		m_rtLastTime = rtNow+avgFrameTime;
-		pms->SetDiscontinuity(true);
-	} // end else if(rtDelta/avgFrameTime>NumDroppedFrames)
-
+	// Spout addition - sleep to meet the frame rate
+	// elapsed will be zero for the first call
+	REFERENCE_TIME elapsed = (REFERENCE_TIME)EndTiming() / 1000LL; // Sleep is msec precision
+	if (elapsed < avgFrameTime / 10000LL) {
+		DWORD dwSleep = (DWORD)(avgFrameTime / 10000LL - elapsed);
+		Sleep(dwSleep);
+	}
+	m_rtLastTime += avgFrameTime;
 	// The SetTime method sets the stream times when this sample should begin and finish.
-    hr = pms->SetTime(&rtNow, &m_rtLastTime);
+	pms->SetTime(&rtNow, &m_rtLastTime);
 	// Set true on every sample for uncompressed frames
-    hr = pms->SetSyncPoint(true);
-	// ============== END OF INITIAL TIMING ============
+	pms->SetSyncPoint(TRUE);
+
+	// Reset timer for sleep calculations
+	StartTiming();
 
 	// Check access to the sample's data buffer
     pms->GetPointer(&pData);
@@ -784,8 +754,13 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 			}
 			bInitialized = true;
 			NumFrames++;
-
 			return NOERROR;
+		}
+		else {
+			if (bInitialized) {
+				receiver.ReleaseReceiver();
+				bInitialized = false;
+			}
 		}
 
 	} // endif not disconnected
@@ -855,7 +830,7 @@ HRESULT CVCamStream::GetMediaType(int iPosition, CMediaType *pmt)
 		width	=  g_Width;
 		height	=  g_Height;
 	}
-	
+
 	pvi->bmiHeader.biSize				= sizeof(BITMAPINFOHEADER);
 	pvi->bmiHeader.biWidth				= (LONG)width;
 	pvi->bmiHeader.biHeight				= (LONG)height;
@@ -871,7 +846,7 @@ HRESULT CVCamStream::GetMediaType(int iPosition, CMediaType *pmt)
 	// 15fps =  666667
 	// 30fps =  333333
 	// 60fps =  166667
-	pvi->AvgTimePerFrame = g_FrameTime; // From SpoutCamConfig - 60fps default
+	pvi->AvgTimePerFrame = g_FrameTime; // From SpoutCamConfig - 30fps default
 
     SetRectEmpty(&(pvi->rcSource)); // we want the whole image area rendered.
     SetRectEmpty(&(pvi->rcTarget)); // no particular destination rectangle
@@ -1034,7 +1009,7 @@ HRESULT STDMETHODCALLTYPE CVCamStream::GetStreamCaps(int iIndex, AM_MEDIA_TYPE *
 	// For a capture filter, the size is the largest signal the filter 
 	// can digitize with every pixel remaining unique.
 	// Note  Deprecated.
-    pvscc->InputSize.cx			= 1920;
+	pvscc->InputSize.cx			= 1920;
     pvscc->InputSize.cy			= 1080;
     pvscc->MinCroppingSize.cx	= 0; // LJ was 80 but we don't want to limit it
     pvscc->MinCroppingSize.cy	= 0; // was 60
