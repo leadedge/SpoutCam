@@ -229,6 +229,7 @@
 			   Change back to simple timing in FillBuffer due to freeze with Zoom
 			   Add duration and Sleep to keep cycle correct
 			   TODO : compatibility check with other hosts
+	01.10.20   Move SetResolution to after registry check
 			   Version 2.015
 
 */
@@ -264,6 +265,7 @@ static uint32_t xorshiftRand()
 CUnknown * WINAPI CVCam::CreateInstance(LPUNKNOWN lpunk, HRESULT *phr)
 {
     ASSERT(phr);
+
 
 	/*
 	// debug console window
@@ -447,7 +449,7 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 	g_SenderName[0] = 0;
 	g_ActiveSender[0] = 0;
 
-
+	//
 	// Retrieve fps and resolution from registry "SpoutCamConfig"
 	//		o Fps
 	//			10	0
@@ -457,6 +459,7 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 	// Compatibility problems with some software if > 60 fps
 	//			50	4
 	//			60	5
+	//
 	dwFps = 3; // Fps from SpoutCamConfig (default 3 = 30)
 	if (!ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "fps", &dwFps)) {
 		dwFps = 3;
@@ -480,28 +483,32 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 	//			1920 x 1080		10
 	//
 	dwResolution = 0; // Resolution from SpoutCamConfig (default 0 = active sender)
-	if (ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "resolution", &dwResolution)) {
-		// if there is no Sender, getmediatype will use
-		// the default resolution set by the user
-		SetResolution(dwResolution);
-	}
-
-	// No resolution pre-defined - is a sender running ?
+	ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "resolution", &dwResolution);
+	// if there is no Sender, getmediatype will use
+	// the default resolution set by the user
+		// SetResolution(dwResolution);
+	
+	// Resolution index 0 means that the user has selected "Active sender"
 	if(dwResolution == 0) {
-		// Use the active sender if any
+		// Use the resolution of the active sender if one is running
 		if(receiver.GetActiveSender(g_SenderName)) {
 			unsigned int width, height;
 			HANDLE sharehandle;
 			DWORD format;
 			if (receiver.GetSenderInfo(g_SenderName, width, height, sharehandle, format)) {
-				// If not fixed to the selected resolution, use the sender width and height
+				// If not fixed to the a selected resolution, use the sender width and height
 				g_Width  = width;
 				g_Height = height;
 			}
 		}
 	}
+	else {
+		// Set g_WIdth and g_Height according to the registry setting
+		SetResolution(dwResolution);
+	}
 
 	// Find out whether memoryshare mode is selected by SpoutSettings
+	// TODO : Memoryshare not supported by DirectX
 	bMemoryMode = receiver.GetMemoryShareMode();
 
 	m_Fps = dwFps;
