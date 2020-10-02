@@ -33,12 +33,12 @@
 #define __spoutDX__
 
 // Change the path as required
-#include "SpoutCommon.h" // for dll build and utilities
-#include "SpoutSenderNames.h" // for sender creation and update
-#include "SpoutDirectX.h" // for creating DX11 textures
-#include "SpoutFrameCount.h" // for mutex lock and new frame signal
-#include "SpoutCopy.h" // for pixel copy
-#include "SpoutUtils.h" // Registry utiities
+#include "..\..\SpoutSDK\SpoutCommon.h" // for dll build and utilities
+#include "..\..\SpoutSDK\SpoutSenderNames.h" // for sender creation and update
+#include "..\..\SpoutSDK\SpoutDirectX.h" // for creating DX11 textures
+#include "..\..\SpoutSDK\SpoutFrameCount.h" // for mutex lock and new frame signal
+#include "..\..\SpoutSDK\SpoutCopy.h" // for pixel copy
+#include "..\..\SpoutSDK\SpoutUtils.h" // Registry utiities
 
 #include <direct.h> // for _getcwd
 #include <TlHelp32.h> // for PROCESSENTRY32
@@ -162,7 +162,10 @@ protected :
 	ID3D11Device* m_pd3dDevice;
 	ID3D11DeviceContext* m_pImmediateContext;
 	ID3D11Texture2D* m_pSharedTexture;
-	ID3D11Texture2D* m_pStagingTexture;
+	ID3D11Texture2D* m_pStaging[2];
+	int m_Index;
+	int m_NextIndex;
+
 	HANDLE m_dxShareHandle;
 	DWORD m_dwFormat;
 	SharedTextureInfo m_SenderInfo;
@@ -181,10 +184,15 @@ protected :
 
 	bool ReceiveSenderData();
 	void CreateReceiver(const char * sendername, unsigned int width, unsigned int height, DWORD dwFormat);
+	
+	// Read pixels via staging texture
 	bool ReadRGBApixels(ID3D11Texture2D* pStagingTexture, unsigned char* pixels, unsigned int width, unsigned int height, bool bInvert);
-	bool ReadRGBpixels (ID3D11Texture2D* pStagingTexture, unsigned char* pixels, unsigned int width, unsigned int height, bool bInvert);
-	bool CheckStagingTexture(unsigned int width, unsigned int height, DWORD dwFormat = DXGI_FORMAT_B8G8R8A8_UNORM);
+	bool ReadRGBpixels(ID3D11Texture2D* pStagingTexture, unsigned char* pixels, unsigned int width, unsigned int height, bool bInvert);
+	bool ReadRGBAimage(unsigned char* pixels, unsigned int width, unsigned int height, bool bInvert);
+	bool ReadRGBimage(unsigned char* pixels, unsigned int width, unsigned int height, bool bInvert);
+	bool CheckStagingTextures(unsigned int width, unsigned int height, DWORD dwFormat = DXGI_FORMAT_B8G8R8A8_UNORM);
 	bool CreateDX11StagingTexture(unsigned int width, unsigned int height, DXGI_FORMAT format, ID3D11Texture2D** pStagingTexture);
+
 	void SelectSenderPanel();
 	bool CheckSpoutPanel(char *sendername, int maxchars = 256);
 
