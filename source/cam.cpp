@@ -231,6 +231,10 @@
 			   TODO : compatibility check with other hosts
 	01.10.20   Move SetResolution to after registry check
 			   Version 2.015
+	02.10.20   Look for dropped frames and adjust
+			   SpoutDX updated for async readback from GPU using two staging textures
+	03.10.20   GitHub release Master v2.016 - Version 2.016
+
 
 */
 
@@ -266,13 +270,12 @@ CUnknown * WINAPI CVCam::CreateInstance(LPUNKNOWN lpunk, HRESULT *phr)
 {
     ASSERT(phr);
 
-
 	/*
 	// debug console window
 	FILE * pCout = NULL;
 	AllocConsole();
 	freopen_s(&pCout, "CONOUT$", "w", stdout);
-	printf("SpoutCamDX ~~ Vers 2.015\n");
+	printf("SpoutCamDX ~~ Vers 2.016\n");
 	*/
 
     CUnknown *punk = new CVCam(lpunk, phr);
@@ -670,6 +673,10 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 		return S_FALSE;
 	}
 
+	// LJ DEBUG
+	if (bMemoryMode)
+		return FALSE;
+
 	//
 	// Simple timing as per original Vcam
 	// https://github.com/johnmaccormick/MultiCam/blob/master/vcam/Filters.cpp
@@ -677,18 +684,30 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 	//
 	// Set the timestamps that will govern playback frame rate.
 	//
-	// The current time is the sample's start
+	// The current time is the sample's start.
 	REFERENCE_TIME rtNow = m_rtLastTime;
 	REFERENCE_TIME avgFrameTime = ((VIDEOINFOHEADER*)m_mt.pbFormat)->AvgTimePerFrame;
 	rtNow = m_rtLastTime;
-	// Spout addition - sleep to meet the frame rate
-	// elapsed will be zero for the first call
+	// Sleep to meet the frame rate.
+	// elapsed will be zero for the first call.
 	REFERENCE_TIME elapsed = (REFERENCE_TIME)EndTiming() / 1000LL; // Sleep is msec precision
 	if (elapsed < avgFrameTime / 10000LL) {
 		DWORD dwSleep = (DWORD)(avgFrameTime / 10000LL - elapsed);
 		Sleep(dwSleep);
 	}
-	m_rtLastTime += avgFrameTime;
+	// Look for dropped frames and adjust.
+	REFERENCE_TIME dropped = elapsed / (avgFrameTime / 10000LL);
+	if (dropped > 0) {
+		// Our time stamping needs adjustment.
+		// Find total real stream.
+		rtNow = rtNow + dropped * avgFrameTime;
+		m_rtLastTime = rtNow + avgFrameTime;
+		pms->SetDiscontinuity(true);
+	}
+	else {
+		m_rtLastTime += avgFrameTime;
+	}
+
 	// The SetTime method sets the stream times when this sample should begin and finish.
 	pms->SetTime(&rtNow, &m_rtLastTime);
 	// Set true on every sample for uncompressed frames
