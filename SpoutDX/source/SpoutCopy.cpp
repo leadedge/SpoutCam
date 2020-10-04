@@ -751,7 +751,7 @@ void spoutCopy::rgba2rgba(const void* rgba_source, void* rgba_dest,
 {
 	for (unsigned int y = 0; y < height; y++) {
 		// Start of buffer
-		auto source = static_cast<const unsigned __int32 *>(rgba_source);; // unsigned int = 4 bytes
+		auto source = static_cast<const unsigned __int32 *>(rgba_source); // unsigned int = 4 bytes
 		auto dest = static_cast<unsigned __int32 *>(rgba_dest);
 		// Increment to current line
 		// pitch is line length in bytes. Divide by 4 to get the width in rgba pixels.
@@ -775,7 +775,7 @@ void spoutCopy::rgba2rgba(const void* rgba_source, void* rgba_dest,
 	// For all rows
 	for (unsigned int y = 0; y < height; y++) {
 		// Start of buffers
-		auto source = static_cast<const unsigned __int32 *>(rgba_source);; // unsigned int = 4 bytes
+		auto source = static_cast<const unsigned __int32 *>(rgba_source); // unsigned int = 4 bytes
 		auto dest = static_cast<unsigned __int32 *>(rgba_dest);
 		// Increment to current line
 		// Pitch is line length in bytes. Divide by 4 to get the width in rgba pixels.

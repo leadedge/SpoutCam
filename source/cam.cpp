@@ -234,7 +234,8 @@
 	02.10.20   Look for dropped frames and adjust
 			   SpoutDX updated for async readback from GPU using two staging textures
 	03.10.20   GitHub release Master v2.016 - Version 2.016
-
+	04.10.20   Update with Revised SpoutDX ReceiveImage function
+			   Verson 2.016
 
 */
 
@@ -765,14 +766,14 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 		bDXinitialized = true;
 
 		// Get bgr pixels from the sender bgra shared texture
-		// ReceiveRGBimage handles sender detection, connection and copy of pixels
-		if (receiver.ReceiveRGBimage(pData, g_Width, g_Height, true)) {
+		// ReceiveImage handles sender detection, connection and copy of pixels
+		if (receiver.ReceiveImage(pData, g_Width, g_Height, true, true)) { // rgb = true, invert = true
 			// If IsUpdated() returns true, the sender has changed
 			if (receiver.IsUpdated()) {
 				if (strcmp(g_SenderName, receiver.GetSenderName()) != 0) {
 					// Only test for change of sender name.
 					// The pixel buffer (pData) remains the same size and 
-					// ReceiveRGBimage uses resampling for a different texture size
+					// ReceiveImagee uses resampling for a different texture size
 					strcpy_s(g_SenderName, 256, receiver.GetSenderName());
 					// Set the sender name to the registry for SpoutCamSettings
 					WritePathToRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "sendername", g_SenderName);
