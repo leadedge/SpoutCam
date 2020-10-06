@@ -238,6 +238,8 @@
 	06.10.20   Add "public IAMDroppedFrames" to the declaration of CVCamStream in "cam.h"
 			   to prevent problems due to missing property dialog. Thanks to Valentin Schmidt.
 			   Allow for receiving from DX9 senders in SpoutDX
+			   Add options for image mirror, flip and swap (RGB <> BGR)
+			   Requires SpoutCamSettings - Version 2.005 or greater
 			   Verson 2.017
 
 */
@@ -514,6 +516,35 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 	// (Memoryshare is not supported by DirectX)
 	bMemoryMode = receiver.GetMemoryShareMode();
 
+	//
+	// Options in SpoutCamSettings
+	//
+
+	DWORD dwMode = 0;
+	// Mirror image
+	ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "mirror", &dwMode);
+	if(dwMode > 0)
+		receiver.m_bMirror = true;
+	else
+		receiver.m_bMirror = false;
+
+	// RGB <> BGR
+	ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "swap", &dwMode);
+	if (dwMode > 0)
+		receiver.m_bSwapRB = true;
+	else
+		receiver.m_bSwapRB = false;
+
+	// Flip image
+	// Default is flipped due to upside down Windows bitmap
+	// If set false, the result comes out inverted
+	// bInvert = false; 
+	ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "flip", &dwMode);
+	if (dwMode > 0)
+		bInvert = false;
+	else
+		bInvert = true;
+
 	m_Fps = dwFps;
 	m_Resolution = dwResolution;
 
@@ -727,12 +758,6 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 	if(width == 0 || height == 0)
 		return NOERROR;
 
-	// LJ DEBUG
-	// DX9 mode not supported for SpoutCam DX11 version
-	// LJ DEBUG
-	// if (receiver.GetDX9())
-		// return NOERROR;
-
 	// Don't do anything if disconnected because it will already have connected
 	// previously and something has changed. It can only disconnect after it has connected.
 	if(!bDisconnected) {
@@ -767,7 +792,8 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 
 		// Get bgr pixels from the sender bgra shared texture
 		// ReceiveImage handles sender detection, connection and copy of pixels
-		if (receiver.ReceiveImage(pData, g_Width, g_Height, true, true)) { // rgb = true (not rgba), invert = true
+		if (receiver.ReceiveImage(pData, g_Width, g_Height, true, bInvert)) {
+			// rgb(not rgba) = true, invert = true
 			// If IsUpdated() returns true, the sender has changed
 			if (receiver.IsUpdated()) {
 				if (strcmp(g_SenderName, receiver.GetSenderName()) != 0) {

@@ -155,6 +155,10 @@ class SPOUT_DLLEXP spoutDX {
 	spoutDirectX spoutdx;
 	spoutCopy spoutcopy;
 
+	// Options used for SpoutCam
+	bool m_bMirror; // Mirror image
+	bool m_bSwapRB; // RGB <> BGR
+
 protected :
 
 	ID3D11Device* m_pd3dDevice;
