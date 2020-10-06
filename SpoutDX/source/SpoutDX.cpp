@@ -76,6 +76,7 @@
 //					- Replace ReceiveRGBimage with ReceiveImage and rgb flag
 //					- Replace ReadRGBAimage, ReadRGBimage, ReadRGBApixels, ReadRGBpixels
 //					  with ReadPixelData and rgb flag
+//		06.10.20	- Allow for DX9 shared textures by creating receiving texture with compatible format
 //
 // ====================================================================================
 /*
@@ -783,7 +784,7 @@ bool spoutDX::SetAdapter(int index)
 
 
 //
-// Sharing modes not supported
+// Sharing modes
 //
 
 bool spoutDX::GetDX9()
@@ -858,12 +859,20 @@ bool spoutDX::ReceiveSenderData()
 			return false;
 		}
 
+		// Compatible DX9 formats
+		// 21 =	D3DFMT_A8R8G8B8
+		// 22 = D3DFMT_X8R8G8B8
+		if (dwFormat == 21 || dwFormat == 21) {
+			// Create a DX11 receiving texture with compatible format
+			dwFormat = (DWORD)DXGI_FORMAT_B8G8R8A8_UNORM;
+		}
+
 		// The shared texture handle will be different
 		//   o for a new sender
 		//   o for texture size or format change
 		if (dxShareHandle != m_dxShareHandle) {
 
-			// Release everything and start again below
+			// Release everything now and start again below
 			ReleaseReceiver();
 
 			// Get a new shared texture pointer
@@ -986,8 +995,9 @@ bool spoutDX::ReadPixelData(ID3D11Texture2D* pStagingTexture, unsigned char* pix
 // Create new class staging textures if changed size or do not exist yet
 bool spoutDX::CheckStagingTextures(unsigned int width, unsigned int height, DWORD dwFormat)
 {
-	if (!m_pd3dDevice)
+	if (!m_pd3dDevice) {
 		return false;
+	}
 
 	D3D11_TEXTURE2D_DESC desc = { 0 };
 

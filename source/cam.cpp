@@ -235,7 +235,10 @@
 			   SpoutDX updated for async readback from GPU using two staging textures
 	03.10.20   GitHub release Master v2.016 - Version 2.016
 	04.10.20   Update with Revised SpoutDX ReceiveImage function
-			   Verson 2.016
+	06.10.20   Add "public IAMDroppedFrames" to the declaration of CVCamStream in "cam.h"
+			   to prevent problems due to missing property dialog. Thanks to Valentin Schmidt.
+			   Allow for receiving from DX9 senders in SpoutDX
+			   Verson 2.017
 
 */
 
@@ -271,13 +274,10 @@ CUnknown * WINAPI CVCam::CreateInstance(LPUNKNOWN lpunk, HRESULT *phr)
 {
     ASSERT(phr);
 
-	/*
 	// debug console window
-	FILE * pCout = NULL;
-	AllocConsole();
-	freopen_s(&pCout, "CONOUT$", "w", stdout);
-	printf("SpoutCamDX ~~ Vers 2.016\n");
-	*/
+	// OpenSpoutConsole(); // Empty console
+	// EnableSpoutLog(); // Show error logs
+	// printf("SpoutCamDX ~~ Vers 2.017\n");
 
     CUnknown *punk = new CVCam(lpunk, phr);
 
@@ -488,9 +488,8 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 	//
 	dwResolution = 0; // Resolution from SpoutCamConfig (default 0 = active sender)
 	ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "resolution", &dwResolution);
-	// if there is no Sender, getmediatype will use
-	// the default resolution set by the user
-		// SetResolution(dwResolution);
+	
+	// If there is no Sender, getmediatype will use the resolution set by the user
 	
 	// Resolution index 0 means that the user has selected "Active sender"
 	if(dwResolution == 0) {
@@ -507,12 +506,12 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 		}
 	}
 	else {
-		// Set g_WIdth and g_Height according to the registry setting
+		// Set g_Width and g_Height according to the registry setting
 		SetResolution(dwResolution);
 	}
 
 	// Find out whether memoryshare mode is selected by SpoutSettings
-	// TODO : Memoryshare not supported by DirectX
+	// (Memoryshare is not supported by DirectX)
 	bMemoryMode = receiver.GetMemoryShareMode();
 
 	m_Fps = dwFps;
@@ -674,17 +673,16 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 		return S_FALSE;
 	}
 
-	// LJ DEBUG
+	// Memory share mode not supported by DirectX
 	if (bMemoryMode)
 		return FALSE;
 
 	//
-	// Simple timing as per original Vcam
+	// Simple timing modifed from original Vcam
 	// https://github.com/johnmaccormick/MultiCam/blob/master/vcam/Filters.cpp
-	// Freezes with with VLC. OK for Zoom.
 	//
+
 	// Set the timestamps that will govern playback frame rate.
-	//
 	// The current time is the sample's start.
 	REFERENCE_TIME rtNow = m_rtLastTime;
 	REFERENCE_TIME avgFrameTime = ((VIDEOINFOHEADER*)m_mt.pbFormat)->AvgTimePerFrame;
@@ -697,11 +695,11 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 		Sleep(dwSleep);
 	}
 	// Look for dropped frames and adjust.
-	REFERENCE_TIME dropped = elapsed / (avgFrameTime / 10000LL);
-	if (dropped > 0) {
+	REFERENCE_TIME droppedFrames = elapsed / (avgFrameTime / 10000LL);
+	if (droppedFrames > 0) { 
 		// Our time stamping needs adjustment.
 		// Find total real stream.
-		rtNow = rtNow + dropped * avgFrameTime;
+		rtNow = rtNow + droppedFrames * avgFrameTime;
 		m_rtLastTime = rtNow + avgFrameTime;
 		pms->SetDiscontinuity(true);
 	}
@@ -729,9 +727,11 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 	if(width == 0 || height == 0)
 		return NOERROR;
 
+	// LJ DEBUG
 	// DX9 mode not supported for SpoutCam DX11 version
-	if (receiver.GetDX9())
-		return NOERROR;
+	// LJ DEBUG
+	// if (receiver.GetDX9())
+		// return NOERROR;
 
 	// Don't do anything if disconnected because it will already have connected
 	// previously and something has changed. It can only disconnect after it has connected.
@@ -767,13 +767,13 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 
 		// Get bgr pixels from the sender bgra shared texture
 		// ReceiveImage handles sender detection, connection and copy of pixels
-		if (receiver.ReceiveImage(pData, g_Width, g_Height, true, true)) { // rgb = true, invert = true
+		if (receiver.ReceiveImage(pData, g_Width, g_Height, true, true)) { // rgb = true (not rgba), invert = true
 			// If IsUpdated() returns true, the sender has changed
 			if (receiver.IsUpdated()) {
 				if (strcmp(g_SenderName, receiver.GetSenderName()) != 0) {
 					// Only test for change of sender name.
 					// The pixel buffer (pData) remains the same size and 
-					// ReceiveImagee uses resampling for a different texture size
+					// ReceiveImage uses resampling for a different texture size
 					strcpy_s(g_SenderName, 256, receiver.GetSenderName());
 					// Set the sender name to the registry for SpoutCamSettings
 					WritePathToRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "sendername", g_SenderName);
@@ -805,7 +805,6 @@ ShowStatic :
 	return NOERROR;
 
 } // FillBuffer
-
 
 
 //

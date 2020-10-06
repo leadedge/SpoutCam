@@ -87,7 +87,7 @@ public:
 
 };
 
-class CVCamStream : public CSourceStream, public IAMStreamConfig, public IKsPropertySet
+class CVCamStream : public CSourceStream, public IAMStreamConfig, public IKsPropertySet, public IAMDroppedFrames
 {
 
 public:

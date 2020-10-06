@@ -95,7 +95,7 @@ class SPOUT_DLLEXP spoutDX {
 	// Receive a texture from a sender
 	bool ReceiveTexture(ID3D11Texture2D** ppTexture = nullptr);
 	// Receive an image
-	bool ReceiveImage(unsigned char * pixels, unsigned int width, unsigned int height, bool bRGB = false,  bool bInvert = false);
+	bool ReceiveImage(unsigned char * pixels, unsigned int width, unsigned int height, bool bRGB = false, bool bInvert = false);
 	// Open sender selection dialog
 	void SelectSender();
 	// Sender has changed
