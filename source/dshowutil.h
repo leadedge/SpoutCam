@@ -51,8 +51,6 @@
 //}
 //#define TRACE(...) OutputDebugStringf(__VA_ARGS__);
 
-#define DBGI(x) {char dbg[32];sprintf(dbg,"%ld",(long)x);OutputDebugStringA(dbg);}
-
 ///////////////////////////////////////////////////////////////////////
 // Name: ShowFilterPropertyPage
 // Desc: Show a filter's property page.

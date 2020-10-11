@@ -247,7 +247,9 @@ HRESULT CSpoutCamProperties::OnApplyChanges()
 	hwndCtl = GetDlgItem(this->m_Dlg, IDC_FLIP);
 	dwFlip = Button_GetCheck(hwndCtl);
 	WriteDwordToRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "flip", dwFlip);
+	
+	if (m_pCamSettings)
+		m_pCamSettings->put_Settings(dwFps, dwResolution, dwMirror, dwSwap, dwFlip);
 
-	CheckPointer(m_pCamSettings, E_POINTER);
-	return m_pCamSettings->put_Settings(dwFps, dwResolution, dwMirror, dwSwap, dwFlip);
+	return S_OK;
 }
