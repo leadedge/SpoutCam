@@ -16,7 +16,6 @@
 
 #define DECLARE_PTR(type, ptr, expr) type* ptr = (type*)(expr);
 
-
 // leak checking
 // http://www.codeproject.com/Articles/9815/Visual-Leak-Detector-Enhanced-Memory-Leak-Detectio
 //
@@ -31,11 +30,36 @@
 #include "..\SpoutDX\source\SpoutDX.h"
 #include <streams.h>
 
+//<==================== VS-START ====================>
+#include "dshowutil.h"
+
+// we need a LPCTSTR for the NAME() makros in debug mode
+#define SPOUTCAMNAME "SpoutCam"
+
+extern "C" {
+	DECLARE_INTERFACE_(ICamSettings, IUnknown)
+	{
+		STDMETHOD(put_Settings) (THIS_
+			DWORD dwFps,
+			DWORD dwResolution,
+			DWORD dwMirror, 
+			DWORD dwSwap, 
+			DWORD dwFlip
+			) PURE;
+	};
+}
+
+EXTERN_C const GUID CLSID_SpoutCamPropertyPage;
+EXTERN_C const GUID IID_ICamSettings;
+//<==================== VS-END ======================>
+
 EXTERN_C const GUID CLSID_SpoutCam;
 EXTERN_C const WCHAR SpoutCamName[MAX_PATH];
 
 class CVCamStream;
-class CVCam : public CSource
+class CVCam : public CSource,
+	public ISpecifyPropertyPages,//VS
+	public ICamSettings//VS
 {
 public:
     //////////////////////////////////////////////////////////////////////////
@@ -50,6 +74,14 @@ public:
     IFilterGraph *GetGraph() {return m_pGraph;}
 
 	STDMETHODIMP JoinFilterGraph(__inout_opt IFilterGraph * pGraph, __in_opt LPCWSTR pName);
+
+	//<==================== VS-START ====================>
+	// ISpecifyPropertyPages interface
+	STDMETHODIMP GetPages(CAUUID *pPages);
+
+	// ICamSettings interface
+	STDMETHODIMP put_Settings(DWORD dwFps, DWORD dwResolution, DWORD dwMirror, DWORD dwSwap, DWORD dwFlip);
+	//<==================== VS-END ======================>
 
 private:
 
@@ -163,12 +195,15 @@ public:
     HRESULT SetMediaType(const CMediaType *pmt);
     HRESULT OnThreadCreate(void);
 
-	int m_Fps;
-	int m_Resolution;
+	//int m_Fps; //VS removed (not used)
+	//int m_Resolution; //VS removed (not used)
+
 	bool m_bLock;
 	
+	HRESULT put_Settings(DWORD dwFps, DWORD dwResolution, DWORD dwMirror, DWORD dwSwap, DWORD dwFlip); //VS
 	void SetFps(DWORD dwFps);
 	void SetResolution(DWORD dwResolution);
+	void ReleaseCamReceiver();
 
 	// ============== IPC functions ==============
 	//

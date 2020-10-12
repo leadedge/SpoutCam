@@ -241,16 +241,26 @@
 			   Add options for image mirror, flip and swap (RGB <> BGR)
 			   Requires SpoutCamSettings - Version 2.005 or greater
 			   Verson 2.017
+	09.10.20   Valentin Schmidt: Various changes to add a settings dialog
+			   Verson 2.018
+	09.10.20   Valentin Schmidt: added Mirror/Flip/Swap options to dialog
+			   Verson 2.019
+	12.10.20   CVCam::CreateInstance - SetProcessDPIAware() for clear options dialog
+			   put_Settings simplify code for flags
+			   Introduce ReleaseCamReceiver()
+			   Remove connect/disconnect test
+			   Showstatic if user and filter resolutions are different
+			   Update verison.h - Version 2.020
 
 */
 
 #pragma warning(disable:4244)
 #pragma warning(disable:4711)
 
-#include <stdio.h>
-#include <conio.h>
-#include <olectl.h>
-#include <dshow.h>
+//#include <stdio.h>  //VS removed (not needed)
+//#include <conio.h>  //VS removed (not needed)
+//#include <olectl.h> //VS removed (not needed)
+//#include <dshow.h>  //VS removed (not needed)
 
 #include "cam.h"
 
@@ -268,7 +278,6 @@ static uint32_t xorshiftRand()
 	return seed;
 }
 
-
 //////////////////////////////////////////////////////////////////////////
 //  CVCam is the source filter which masquerades as a capture device
 //////////////////////////////////////////////////////////////////////////
@@ -281,13 +290,16 @@ CUnknown * WINAPI CVCam::CreateInstance(LPUNKNOWN lpunk, HRESULT *phr)
 	// EnableSpoutLog(); // Show error logs
 	// printf("SpoutCamDX ~~ Vers 2.017\n");
 
+	// For clear options dialog for scaled display
+	SetProcessDPIAware();
+
     CUnknown *punk = new CVCam(lpunk, phr);
 
     return punk;
 }
 
 CVCam::CVCam(LPUNKNOWN lpunk, HRESULT *phr) : 
-	CSource(NAME(SpoutCamName), lpunk, CLSID_SpoutCam)
+	CSource(NAME(SPOUTCAMNAME), lpunk, CLSID_SpoutCam) //VS: replaced SpoutCamName with makro SPOUTCAMNAME, NAME() expects LPCTSTR
 {
     ASSERT(phr);
 
@@ -297,6 +309,7 @@ CVCam::CVCam(LPUNKNOWN lpunk, HRESULT *phr) :
     m_paStreams = (CSourceStream **)new CVCamStream*[1];
 	m_paStreams[0] = new CVCamStream(phr, this, (LPCWSTR)&SpoutCamName);
 
+	if (phr) *phr = S_OK; //VS
 }
 
 // Retrieves pointers to the supported interfaces on an object.
@@ -308,6 +321,12 @@ HRESULT CVCam::QueryInterface(REFIID riid, void **ppv)
 		riid == _uuidof(IAMDroppedFrames)  ||
 		riid == _uuidof(IKsPropertySet))
         return m_paStreams[0]->QueryInterface(riid, ppv);
+	//<==================== VS-START ====================>
+	else if (riid == IID_ICamSettings)
+		return GetInterface((ICamSettings *)this, ppv);
+	else if (riid == IID_ISpecifyPropertyPages)
+		return GetInterface((ISpecifyPropertyPages *)this, ppv);
+	//<==================== VS-END ======================>
     else
         return CSource::QueryInterface(riid, ppv);
 }
@@ -331,6 +350,33 @@ STDMETHODIMP CVCam::JoinFilterGraph(
 	HRESULT hr = CBaseFilter::JoinFilterGraph(pGraph, pName);
 	return hr;
 }
+
+//<==================== VS-START ====================>
+
+//////////////////////////////////////////////////////////////////////////
+// ISpecifyPropertyPages interface
+//////////////////////////////////////////////////////////////////////////
+
+// GetPages
+// Returns the clsid's of the property pages we support
+STDMETHODIMP CVCam::GetPages(CAUUID *pPages)
+{
+	CheckPointer(pPages, E_POINTER);
+	pPages->cElems = 1;
+	pPages->pElems = (GUID *)CoTaskMemAlloc(sizeof(GUID));
+	if (pPages->pElems == NULL)
+		return E_OUTOFMEMORY;
+	pPages->pElems[0] = CLSID_SpoutCamPropertyPage;
+	return S_OK;
+}
+
+STDMETHODIMP CVCam::put_Settings(DWORD dwFps, DWORD dwResolution, DWORD dwMirror, DWORD dwSwap, DWORD dwFlip)
+{
+	((CVCamStream *)m_paStreams[0])->put_Settings(dwFps, dwResolution, dwMirror, dwSwap, dwFlip);
+	return S_OK;
+}
+
+//<==================== VS-END ======================>
 
 ///////////////////////////////////////////////////////////
 // all inherited virtual functions
@@ -398,7 +444,6 @@ HRESULT STDMETHODCALLTYPE CVCam::Run(REFERENCE_TIME tStart)
 	return hr;
 }
 
-
 HRESULT STDMETHODCALLTYPE CVCam::SetSyncSource(__in_opt  IReferenceClock *pClock)
 {
 	return CSource::SetSyncSource(pClock);
@@ -435,14 +480,33 @@ HRESULT STDMETHODCALLTYPE CVCam::Unregister( void)
 }
 //////////////////////////////////////////////////////////////////////////
 
+//<==================== VS-START ====================>
+HRESULT CVCamStream::put_Settings(DWORD dwFps, DWORD dwResolution, DWORD dwMirror, DWORD dwSwap, DWORD dwFlip)
+{
+	// Calling Disconnect() would disconnect SpoutCam with a connected filter (e.g. Color Space Converter) in GraphStudioNext, 
+	// but something is still missing, you can't reconnect the existing filters with the new cam settings.
+	// For now, a better solution is to let the user select "Disconnect all Filters" from the "Graph" menu after SpoutCam's settings
+	// were changed by its Properties dialog, then rendering SpoutCam's output pin works fine and all filters are successfully reconnected,
+	// taking into account the new fps/resolution settings.
 
+	//if (IsConnected()) Disconnect();
+
+	SetFps(dwFps);
+	SetResolution(dwResolution);
+	receiver.m_bMirror = (dwMirror > 0);
+	receiver.m_bSwapRB = (dwSwap > 0);
+	bInvert = (dwFlip > 0);
+
+	return GetMediaType(0, &m_mt);
+}
+//<==================== VS-END ======================>
 
 //////////////////////////////////////////////////////////////////////////
 // CVCamStream is the one and only output pin of CVCam which handles 
 // all the stuff.
 //////////////////////////////////////////////////////////////////////////
 CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
-	CSourceStream(NAME(SpoutCamName), phr, pParent, pPinName), m_pParent(pParent)
+	CSourceStream(NAME(SPOUTCAMNAME), phr, pParent, pPinName), m_pParent(pParent) //VS: replaced SpoutCamName with makro SPOUTCAMNAME, NAME() expects LPCTSTR
 {
 	g_pd3dDevice    = nullptr;
 	bDXinitialized  = false; // DirectX
@@ -466,13 +530,9 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 	//			50	4
 	//			60	5
 	//
-	dwFps = 3; // Fps from SpoutCamConfig (default 3 = 30)
+	// Fps from SpoutCamConfig (default 3 = 30)
 	if (!ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "fps", &dwFps)) {
 		dwFps = 3;
-		g_FrameTime = 333333;
-	}
-	else {
-		SetFps(dwFps);
 	}
 
 	//		o Resolution
@@ -488,28 +548,10 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 	//			1280 x 1024		9
 	//			1920 x 1080		10
 	//
-	dwResolution = 0; // Resolution from SpoutCamConfig (default 0 = active sender)
-	ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "resolution", &dwResolution);
-	
-	// If there is no Sender, getmediatype will use the resolution set by the user
-	
-	// Resolution index 0 means that the user has selected "Active sender"
-	if(dwResolution == 0) {
-		// Use the resolution of the active sender if one is running
-		if(receiver.GetActiveSender(g_SenderName)) {
-			unsigned int width, height;
-			HANDLE sharehandle;
-			DWORD format;
-			if (receiver.GetSenderInfo(g_SenderName, width, height, sharehandle, format)) {
-				// If not fixed to the a selected resolution, use the sender width and height
-				g_Width  = width;
-				g_Height = height;
-			}
-		}
-	}
-	else {
-		// Set g_Width and g_Height according to the registry setting
-		SetResolution(dwResolution);
+	// Resolution from SpoutCamConfig (default 0 = active sender)
+	if (!ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "resolution", &dwResolution))
+	{
+		dwResolution = 0;
 	}
 
 	// Find out whether memoryshare mode is selected by SpoutSettings
@@ -520,36 +562,31 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 	// Options in SpoutCamSettings
 	//
 
-	DWORD dwMode = 0;
 	// Mirror image
-	ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "mirror", &dwMode);
-	if(dwMode > 0)
-		receiver.m_bMirror = true;
-	else
-		receiver.m_bMirror = false;
+	DWORD dwMirror = 0;
+	ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "mirror", &dwMirror);
 
 	// RGB <> BGR
-	ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "swap", &dwMode);
-	if (dwMode > 0)
-		receiver.m_bSwapRB = true;
-	else
-		receiver.m_bSwapRB = false;
+	DWORD dwSwap = 0;
+	ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "swap", &dwSwap);
 
 	// Flip image
 	// Default is flipped due to upside down Windows bitmap
 	// If set false, the result comes out inverted
 	// bInvert = false; 
-	ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "flip", &dwMode);
-	if (dwMode > 0)
-		bInvert = false;
-	else
-		bInvert = true;
+	DWORD dwFlip = 0;
+	ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "flip", &dwFlip);
 
-	m_Fps = dwFps;
-	m_Resolution = dwResolution;
+	//<==================== VS-START ====================>
+	// Now always the new function put_Settings is called, which in turn calls
+	// SetFps and SetResolution. Dealing with resolution 0 (Sender) was moved to
+	// SetResolution.
+	put_Settings(dwFps, dwResolution, dwMirror, dwSwap, dwFlip);
+	//<==================== VS-END ======================>
 
-	// Set mediatype to active sender width and height, or user defaults
-	GetMediaType(0, &m_mt);
+	//m_Fps = dwFps; //VS: removed (not used)
+	//m_Resolution = dwResolution; //VS: removed (not used)
+	// GetMediaType(0, &m_mt); //VS: moved to put_Settings
 
 	NumDroppedFrames = 0LL;
 	NumFrames = 0LL;
@@ -601,11 +638,33 @@ void CVCamStream::SetFps(DWORD dwFps)
 	}
 }
 
-
 void CVCamStream::SetResolution(DWORD dwResolution)
 {
 	switch(dwResolution) {
+
+		//<==================== VS-START ====================>
 		// Case 0 - use the active sender or default
+		case 0:
+			{
+				// If there is no Sender, getmediatype will use the resolution set by the user
+				// Resolution index 0 means that the user has selected "Active sender"
+				// Use the resolution of the active sender if one is running
+				if (receiver.GetActiveSender(g_SenderName))
+				{
+					unsigned int width, height;
+					HANDLE sharehandle;
+					DWORD format;
+					if (receiver.GetSenderInfo(g_SenderName, width, height, sharehandle, format))
+					{
+						// If not fixed to the a selected resolution, use the sender width and height
+						g_Width = width;
+						g_Height = height;
+					}
+				}
+			}
+			break;
+		//<==================== VS-END ======================>
+
 		case 1 :
 			g_Width  = 320; // 1 
 			g_Height = 240;
@@ -660,7 +719,6 @@ CVCamStream::~CVCamStream()
 
 	if (bDXinitialized)
 		receiver.CleanupDX11();
-
 } 
 
 HRESULT CVCamStream::QueryInterface(REFIID riid, void **ppv)
@@ -758,65 +816,56 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 	if(width == 0 || height == 0)
 		return NOERROR;
 
-	// Don't do anything if disconnected because it will already have connected
-	// previously and something has changed. It can only disconnect after it has connected.
-	if(!bDisconnected) {
 
-		// If connected, sizes should be OK, but check again
-		unsigned int size = (unsigned int)pms->GetSize();
-		imagesize = width*height*3; // Retrieved above
-		if(size != imagesize) {
-			receiver.ReleaseReceiver();
-			bDisconnected = true; // don't try again
-			return NOERROR;
-		}
+	// Sizes should be OK, but check again
+	unsigned int size = (unsigned int)pms->GetSize();
+	imagesize = width*height*3; // Retrieved above
+	if(size != imagesize) {
+		ReleaseCamReceiver();
+		goto ShowStatic;
+	}
 
-		// Quit if nothing running at all
-		if(!receiver.GetActiveSender(g_ActiveSender)) {
-			receiver.ReleaseReceiver();
-			goto ShowStatic;
-		}
+	// Quit if nothing running at all
+	if(!receiver.GetActiveSender(g_ActiveSender)) {
+		ReleaseCamReceiver();
+		goto ShowStatic;
+	}
 
-		// Initialize DirectX if is has not been done
-		if(!bDXinitialized) {
-			if (receiver.OpenDirectX11()) {
-				g_pd3dDevice = receiver.GetDevice();
-			}
-			else {
-				bDXinitialized = false;
-				bDisconnected = true; // don't try again
-				return NOERROR;
-			}
-		} // endif !bDXinitialized
-		bDXinitialized = true;
-
-		// Get bgr pixels from the sender bgra shared texture
-		// ReceiveImage handles sender detection, connection and copy of pixels
-		if (receiver.ReceiveImage(pData, g_Width, g_Height, true, bInvert)) {
-			// rgb(not rgba) = true, invert = true
-			// If IsUpdated() returns true, the sender has changed
-			if (receiver.IsUpdated()) {
-				if (strcmp(g_SenderName, receiver.GetSenderName()) != 0) {
-					// Only test for change of sender name.
-					// The pixel buffer (pData) remains the same size and 
-					// ReceiveImage uses resampling for a different texture size
-					strcpy_s(g_SenderName, 256, receiver.GetSenderName());
-					// Set the sender name to the registry for SpoutCamSettings
-					WritePathToRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "sendername", g_SenderName);
-				}
-			}
-			bInitialized = true;
-			NumFrames++;
-			return NOERROR;
+	// Initialize DirectX if is has not been done
+	if(!bDXinitialized) {
+		if (receiver.OpenDirectX11()) {
+			g_pd3dDevice = receiver.GetDevice();
+			bDXinitialized = true;
 		}
 		else {
-			if (bInitialized) {
-				receiver.ReleaseReceiver();
-				bInitialized = false;
+			bDXinitialized = false;
+			return NOERROR;
+		}
+	} // endif !bDXinitialized
+	
+
+	// Get bgr pixels from the sender bgra shared texture
+	// ReceiveImage handles sender detection, connection and copy of pixels
+	if (receiver.ReceiveImage(pData, g_Width, g_Height, true, bInvert)) {
+		// rgb(not rgba) = true, invert = true
+		// If IsUpdated() returns true, the sender has changed
+		if (receiver.IsUpdated()) {
+			if (strcmp(g_SenderName, receiver.GetSenderName()) != 0) {
+				// Only test for change of sender name.
+				// The pixel buffer (pData) remains the same size and 
+				// ReceiveImage uses resampling for a different texture size
+				strcpy_s(g_SenderName, 256, receiver.GetSenderName());
+				// Set the sender name to the registry for SpoutCamSettings
+				WritePathToRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "sendername", g_SenderName);
 			}
 		}
-
-	} // endif not disconnected
+		bInitialized = true;
+		NumFrames++;
+		return NOERROR;
+	}
+	else {
+		ReleaseCamReceiver();
+	}
 
 ShowStatic :
 
@@ -831,6 +880,16 @@ ShowStatic :
 	return NOERROR;
 
 } // FillBuffer
+
+
+// Conditionally release receiver and reset flag
+void CVCamStream::ReleaseCamReceiver()
+{
+	if (bInitialized) {
+		receiver.ReleaseReceiver();
+		bInitialized = false;
+	}
+}
 
 
 //
