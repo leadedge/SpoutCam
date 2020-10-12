@@ -201,9 +201,9 @@ public:
 	bool m_bLock;
 	
 	HRESULT put_Settings(DWORD dwFps, DWORD dwResolution, DWORD dwMirror, DWORD dwSwap, DWORD dwFlip); //VS
-
 	void SetFps(DWORD dwFps);
 	void SetResolution(DWORD dwResolution);
+	void ReleaseCamReceiver();
 
 	// ============== IPC functions ==============
 	//

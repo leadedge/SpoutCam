@@ -245,6 +245,13 @@
 			   Verson 2.018
 	09.10.20   Valentin Schmidt: added Mirror/Flip/Swap options to dialog
 			   Verson 2.019
+	12.10.20   CVCam::CreateInstance - SetProcessDPIAware() for clear options dialog
+			   put_Settings simplify code for flags
+			   Introduce ReleaseCamReceiver()
+			   Remove connect/disconnect test
+			   Showstatic if user and filter resolutions are different
+			   Update verison.h - Version 2.020
+
 */
 
 #pragma warning(disable:4244)
@@ -282,6 +289,9 @@ CUnknown * WINAPI CVCam::CreateInstance(LPUNKNOWN lpunk, HRESULT *phr)
 	// OpenSpoutConsole(); // Empty console
 	// EnableSpoutLog(); // Show error logs
 	// printf("SpoutCamDX ~~ Vers 2.017\n");
+
+	// For clear options dialog for scaled display
+	SetProcessDPIAware();
 
     CUnknown *punk = new CVCam(lpunk, phr);
 
@@ -483,21 +493,9 @@ HRESULT CVCamStream::put_Settings(DWORD dwFps, DWORD dwResolution, DWORD dwMirro
 
 	SetFps(dwFps);
 	SetResolution(dwResolution);
-
-	if (dwMirror > 0)
-		receiver.m_bMirror = true;
-	else
-		receiver.m_bMirror = false;
-
-	if (dwSwap > 0)
-		receiver.m_bSwapRB = true;
-	else
-		receiver.m_bSwapRB = false;
-
-	if (dwFlip > 0)
-		bInvert = false;
-	else
-		bInvert = true;
+	receiver.m_bMirror = (dwMirror > 0);
+	receiver.m_bSwapRB = (dwSwap > 0);
+	bInvert = (dwFlip > 0);
 
 	return GetMediaType(0, &m_mt);
 }
@@ -818,65 +816,56 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 	if(width == 0 || height == 0)
 		return NOERROR;
 
-	// Don't do anything if disconnected because it will already have connected
-	// previously and something has changed. It can only disconnect after it has connected.
-	if(!bDisconnected) {
 
-		// If connected, sizes should be OK, but check again
-		unsigned int size = (unsigned int)pms->GetSize();
-		imagesize = width*height*3; // Retrieved above
-		if(size != imagesize) {
-			receiver.ReleaseReceiver();
-			bDisconnected = true; // don't try again
-			return NOERROR;
-		}
+	// Sizes should be OK, but check again
+	unsigned int size = (unsigned int)pms->GetSize();
+	imagesize = width*height*3; // Retrieved above
+	if(size != imagesize) {
+		ReleaseCamReceiver();
+		goto ShowStatic;
+	}
 
-		// Quit if nothing running at all
-		if(!receiver.GetActiveSender(g_ActiveSender)) {
-			receiver.ReleaseReceiver();
-			goto ShowStatic;
-		}
+	// Quit if nothing running at all
+	if(!receiver.GetActiveSender(g_ActiveSender)) {
+		ReleaseCamReceiver();
+		goto ShowStatic;
+	}
 
-		// Initialize DirectX if is has not been done
-		if(!bDXinitialized) {
-			if (receiver.OpenDirectX11()) {
-				g_pd3dDevice = receiver.GetDevice();
-			}
-			else {
-				bDXinitialized = false;
-				bDisconnected = true; // don't try again
-				return NOERROR;
-			}
-		} // endif !bDXinitialized
-		bDXinitialized = true;
-
-		// Get bgr pixels from the sender bgra shared texture
-		// ReceiveImage handles sender detection, connection and copy of pixels
-		if (receiver.ReceiveImage(pData, g_Width, g_Height, true, bInvert)) {
-			// rgb(not rgba) = true, invert = true
-			// If IsUpdated() returns true, the sender has changed
-			if (receiver.IsUpdated()) {
-				if (strcmp(g_SenderName, receiver.GetSenderName()) != 0) {
-					// Only test for change of sender name.
-					// The pixel buffer (pData) remains the same size and 
-					// ReceiveImage uses resampling for a different texture size
-					strcpy_s(g_SenderName, 256, receiver.GetSenderName());
-					// Set the sender name to the registry for SpoutCamSettings
-					WritePathToRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "sendername", g_SenderName);
-				}
-			}
-			bInitialized = true;
-			NumFrames++;
-			return NOERROR;
+	// Initialize DirectX if is has not been done
+	if(!bDXinitialized) {
+		if (receiver.OpenDirectX11()) {
+			g_pd3dDevice = receiver.GetDevice();
+			bDXinitialized = true;
 		}
 		else {
-			if (bInitialized) {
-				receiver.ReleaseReceiver();
-				bInitialized = false;
+			bDXinitialized = false;
+			return NOERROR;
+		}
+	} // endif !bDXinitialized
+	
+
+	// Get bgr pixels from the sender bgra shared texture
+	// ReceiveImage handles sender detection, connection and copy of pixels
+	if (receiver.ReceiveImage(pData, g_Width, g_Height, true, bInvert)) {
+		// rgb(not rgba) = true, invert = true
+		// If IsUpdated() returns true, the sender has changed
+		if (receiver.IsUpdated()) {
+			if (strcmp(g_SenderName, receiver.GetSenderName()) != 0) {
+				// Only test for change of sender name.
+				// The pixel buffer (pData) remains the same size and 
+				// ReceiveImage uses resampling for a different texture size
+				strcpy_s(g_SenderName, 256, receiver.GetSenderName());
+				// Set the sender name to the registry for SpoutCamSettings
+				WritePathToRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "sendername", g_SenderName);
 			}
 		}
-
-	} // endif not disconnected
+		bInitialized = true;
+		NumFrames++;
+		return NOERROR;
+	}
+	else {
+		ReleaseCamReceiver();
+	}
 
 ShowStatic :
 
@@ -891,6 +880,16 @@ ShowStatic :
 	return NOERROR;
 
 } // FillBuffer
+
+
+// Conditionally release receiver and reset flag
+void CVCamStream::ReleaseCamReceiver()
+{
+	if (bInitialized) {
+		receiver.ReleaseReceiver();
+		bInitialized = false;
+	}
+}
 
 
 //

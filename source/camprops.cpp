@@ -228,12 +228,23 @@ HRESULT CSpoutCamProperties::OnApplyChanges()
 	HWND hwndCtl;
 	DWORD dwFps, dwResolution, dwMirror, dwSwap, dwFlip;
 
-	hwndCtl = GetDlgItem(this->m_Dlg, IDC_FPS);
+	// Get old fps and resolution for user warning
+	DWORD dwOldFps, dwOldResolution;
+	ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "fps", &dwOldFps);
+	ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "resolution", &dwOldResolution);
 	dwFps = ComboBox_GetCurSel(hwndCtl);
+	dwResolution = ComboBox_GetCurSel(hwndCtl);
+	if (dwOldFps != dwFps || dwOldResolution != dwResolution) {
+		if (MessageBoxA(NULL, "For change of resolution or fps\nyou have to stop and re-start SpoutCam\nDo you want to change ? ", "Warning", MB_YESNO | MB_TOPMOST | MB_ICONQUESTION) == IDNO)
+			return -1;
+	}
+
+
+
+	hwndCtl = GetDlgItem(this->m_Dlg, IDC_FPS);
 	WriteDwordToRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "fps", dwFps);
 
 	hwndCtl = GetDlgItem(this->m_Dlg, IDC_RESOLUTION);
-	dwResolution = ComboBox_GetCurSel(hwndCtl);
 	WriteDwordToRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "resolution", dwResolution);
 
 	hwndCtl = GetDlgItem(this->m_Dlg, IDC_MIRROR);
@@ -247,7 +258,7 @@ HRESULT CSpoutCamProperties::OnApplyChanges()
 	hwndCtl = GetDlgItem(this->m_Dlg, IDC_FLIP);
 	dwFlip = Button_GetCheck(hwndCtl);
 	WriteDwordToRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "flip", dwFlip);
-	
+
 	if (m_pCamSettings)
 		m_pCamSettings->put_Settings(dwFps, dwResolution, dwMirror, dwSwap, dwFlip);
 
