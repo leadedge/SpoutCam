@@ -13,33 +13,32 @@
 #pragma comment(lib, "ole32")
 #pragma comment(lib, "oleaut32")
 
+//////////////////////////////////////////////////////////////////////////
+// Valentin Schmidt 2018-07-24: this project uses a version called "BaseClasses.lib" instead
+//////////////////////////////////////////////////////////////////////////
+
+//#ifdef _DEBUG
+//    #pragma comment(lib, "strmbasd")
+//#else
+//    #pragma comment(lib, "strmbase")
+//#endif
+
 #include "cam.h"
-
-//<==================== VS-START ====================>
-#ifdef DIALOG_WITHOUT_REGISTRATION
-#pragma comment(lib, "Comctl32.lib")
-#endif
-
-#include "camprops.h"
-//<==================== VS-END ======================>
 
 #include <olectl.h>
 #include <initguid.h>
 #include <dllsetup.h>
 
+
 #define CreateComObject(clsid, iid, var) CoCreateInstance( clsid, NULL, CLSCTX_INPROC_SERVER, iid, (void **)&var);
 
-STDAPI AMovieSetupRegisterServer( CLSID clsServer, LPCWSTR szDescription, LPCWSTR szFileName, LPCWSTR szThreadingModel = L"Both", LPCWSTR szServerType = L"InprocServer32" );
+STDAPI AMovieSetupRegisterServer( CLSID clsServer, LPCWSTR szDescription, LPCWSTR szFileName, LPCWSTR szThreadingModel = L"Both", LPCWSTR szServerType     = L"InprocServer32" );
 STDAPI AMovieSetupUnregisterServer( CLSID clsServer );
 
 //
 // The NAME OF THE CAMERA CAN BE CHANGED HERE
-//<==================== VS-START ====================>
-// Actual name now defined as LPCTSTR literal makro in cam.h.
-// This was needed because the NAME() makros in debug mode need a LPCTSTR,
-// and therefor the debug version previously didn't compile.
-const WCHAR SpoutCamName[] = L"" SPOUTCAMNAME;
-//<==================== VS-END ======================>
+//
+const WCHAR SpoutCamName[] = L"SpoutCam";
 
 //
 // THE CLSID CAN BE CHANGED HERE
@@ -65,17 +64,16 @@ const WCHAR SpoutCamName[] = L"" SPOUTCAMNAME;
 //
 DEFINE_GUID(CLSID_SpoutCam, 0x8e14549a, 0xdb61, 0x4309, 0xaf, 0xa1, 0x35, 0x78, 0xe9, 0x27, 0xe9, 0x33);
 
-//<==================== VS-START ====================>
-// And the property page we support
 
-// {CD7780B7-40D2-4F33-80E2-B02E009CE63F}
-DEFINE_GUID(CLSID_SpoutCamPropertyPage,
-	0xcd7780b7, 0x40d2, 0x4f33, 0x80, 0xe2, 0xb0, 0x2e, 0x0, 0x9c, 0xe6, 0x3f);
+//
+// TODO
+//
+// SpoutCam filter property page
+// https://msdn.microsoft.com/en-us/library/dd377627%28v=vs.85%29.aspx
+//
+// F0B09553-7B71-49D5-9E04-9DE0A0987144
+// DEFINE_GUID(CLSID_SaturationProp, 0xF0B09553, 0x7B71, 0x49D5, 0x9E, 0x04, 0x9D, 0xE0, 0xA0, 0x98, 0x71, 0x44);
 
-// {6CD0D97B-C242-48DA-916D-28856D00754B}
-DEFINE_GUID(IID_ICamSettings,
-	0x6cd0d97b, 0xc242, 0x48da, 0x91, 0x6d, 0x28, 0x85, 0x6d, 0x00, 0x75, 0x4b);
-//<==================== VS-END ======================>
 
 const AMOVIESETUP_MEDIATYPE AMSMediaTypesVCam = 
 { 
@@ -115,14 +113,7 @@ CFactoryTemplate g_Templates[] =
         NULL,
         &AMSFilterVCam
     }
-	//<==================== VS-START ====================>
-	,
-	{
-		L"Settings",
-		&CLSID_SpoutCamPropertyPage,
-		CSpoutCamProperties::CreateInstance
-	}
-	//<==================== VS-END ======================>
+
 };
 
 int g_cTemplates = sizeof(g_Templates) / sizeof(g_Templates[0]);
@@ -180,6 +171,7 @@ STDAPI RegisterFilters( BOOL bRegister )
         }
 
       // release interface
+      //
       if(fm)
           fm->Release();
     }
@@ -196,88 +188,13 @@ STDAPI RegisterFilters( BOOL bRegister )
 // see http://msdn.microsoft.com/en-us/library/windows/desktop/dd376682%28v=vs.85%29.aspx
 STDAPI DllRegisterServer()
 {
-	//<==================== VS-START ====================>
-	HRESULT hr = RegisterFilters(TRUE);
-	if (SUCCEEDED(hr)) hr = AMovieDllRegisterServer2(TRUE);
-	return hr;
-	//<==================== VS-END ======================>
+    return RegisterFilters(TRUE);  // && AMovieDllRegisterServer2( TRUE ); (from screencapturerecorder)
 }
 
 STDAPI DllUnregisterServer()
 {
-	//<==================== VS-START ====================>
-	HRESULT hr = RegisterFilters(FALSE);
-	if (SUCCEEDED(hr)) hr = AMovieDllRegisterServer2(FALSE);
-	return hr;
-	//<==================== VS-END ======================>
+    return RegisterFilters(FALSE);  // && AMovieDllRegisterServer2( TRUE ); (from screencapturerecorder)
 }
-
-//<==================== VS-START ====================>
-#ifdef DIALOG_WITHOUT_REGISTRATION
-
-extern "C" {
-	HRESULT WINAPI OleCreatePropertyFrameDirect(
-		HWND hwndOwner,
-		LPCOLESTR lpszCaption,
-		LPUNKNOWN* ppUnk,
-		IPropertyPage * page);
-}
-
-HRESULT ShowFilterPropertyPageDirect(IBaseFilter *pFilter, HWND hwndParent)
-{
-	TRACE("ShowFilterPropertyPageDirect");
-	HRESULT hr;
-	if (!pFilter)
-		return E_POINTER;
-	CSpoutCamProperties * pPage = (CSpoutCamProperties *)CSpoutCamProperties::CreateInstance(pFilter, &hr);
-	if (SUCCEEDED(hr))
-	{
-		hr = OleCreatePropertyFrameDirect(
-			hwndParent,             // Parent window
-			SpoutCamName,			// Caption for the dialog box
-			(IUnknown **)&pFilter,  // Pointer to the filter
-			pPage
-		);
-		pPage->Release();
-	}
-	return hr;
-}
-#endif
-
-void CALLBACK Configure()
-{
-	HRESULT hr;
-	IBaseFilter *pFilter;
-	CUnknown *pInstance;
-
-	CoInitialize(nullptr);
-
-	// Obtain the filter's IBaseFilter interface.
-	pInstance = CVCam::CreateInstance(nullptr, &hr);
-	if (SUCCEEDED(hr))
-	{
-		hr = pInstance->NonDelegatingQueryInterface(IID_IBaseFilter, (void **)&pFilter);
-		if (SUCCEEDED(hr))
-		{
-			// If the filter is registered, this will open the settings dialog.
-			hr = ShowFilterPropertyPage(pFilter, GetDesktopWindow());
-
-#ifdef DIALOG_WITHOUT_REGISTRATION
-			if (FAILED(hr))
-			{
-				// The filter propably isn't registered in the system;
-				// This will open the settings dialog anyway.
-				hr = ShowFilterPropertyPageDirect(pFilter, GetDesktopWindow());
-			}
-#endif
-			pFilter->Release();
-		}
-		delete pInstance;
-	}
-
-	CoUninitialize();
-}
-//<==================== VS-END ======================>
 
 extern "C" BOOL WINAPI DllEntryPoint(HINSTANCE, ULONG, LPVOID);
 
