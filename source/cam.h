@@ -8,6 +8,7 @@
 //	28.09.15 - updated with modifications by John MacCormick, 2012.
 //	10.07.16 - Modified for "SpoutCamConfig" for starting fps and resolution
 //	17.10.19 - Clean up for DirectX methods
+//	13.10.20 - Clean up unused variables
 //
 
 #pragma once
@@ -194,11 +195,6 @@ public:
     HRESULT GetMediaType(int iPosition, CMediaType *pmt);
     HRESULT SetMediaType(const CMediaType *pmt);
     HRESULT OnThreadCreate(void);
-
-	//int m_Fps; //VS removed (not used)
-	//int m_Resolution; //VS removed (not used)
-
-	bool m_bLock;
 	
 	HRESULT put_Settings(DWORD dwFps, DWORD dwResolution, DWORD dwMirror, DWORD dwSwap, DWORD dwFlip); //VS
 	void SetFps(DWORD dwFps);
@@ -217,19 +213,14 @@ public:
 	ID3D11Device* g_pd3dDevice;  // DirectX 11.0 device pointer
 	bool bMemoryMode;            // true = memory, false = texture
 	bool bInvert;
-	bool bDebug;
 	bool bInitialized;
 	bool bDXinitialized;
-	bool bDisconnected;				// Sender had started but it has stopped or changed image size
-
-	GLenum glBGRmode;
 
 	unsigned int g_Width;			 // The global filter image width
 	unsigned int g_Height;			 // The global filter image height
 
 	DWORD dwFps;					// Fps from SpoutCamConfig
 	DWORD dwResolution;				// Resolution from SpoutCamConfig
-	DWORD dwLock;                   // Fix to the selected resolution
 	int g_FrameTime;                // Frame time to use based on fps selection
 
 private:

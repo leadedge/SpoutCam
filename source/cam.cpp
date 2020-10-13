@@ -251,20 +251,21 @@
 			   Remove connect/disconnect test
 			   Showstatic if user and filter resolutions are different
 			   Update verison.h - Version 2.020
+			   Correct CSpoutCamProperties::OnApplyChanges()
+			   for handle to fps and resolution controls for old comparison
+	13.10.20   CSpoutCamProperties::OnApplyChanges() to restore 
+			   fps & resolution list items on response to no change
+			   Correct pvscc->InputSize.cx/cy in GetStreamCaps
+			   Clean up unused code
+			   Version 2.021
+
 
 */
 
 #pragma warning(disable:4244)
 #pragma warning(disable:4711)
 
-//#include <stdio.h>  //VS removed (not needed)
-//#include <conio.h>  //VS removed (not needed)
-//#include <olectl.h> //VS removed (not needed)
-//#include <dshow.h>  //VS removed (not needed)
-
 #include "cam.h"
-
-static HWND hwndButton = NULL; // dummy window for opengl context
 
 // This is just a fast rand so that the static image isn't too slow for higher resolutions
 // Based on Marsaglia's xorshift generator (http://www.jstatsoft.org/v08/i14/paper)
@@ -288,7 +289,7 @@ CUnknown * WINAPI CVCam::CreateInstance(LPUNKNOWN lpunk, HRESULT *phr)
 	// debug console window
 	// OpenSpoutConsole(); // Empty console
 	// EnableSpoutLog(); // Show error logs
-	// printf("SpoutCamDX ~~ Vers 2.017\n");
+	// printf("SpoutCamDX ~~ Vers 2.021\n");
 
 	// For clear options dialog for scaled display
 	SetProcessDPIAware();
@@ -489,8 +490,6 @@ HRESULT CVCamStream::put_Settings(DWORD dwFps, DWORD dwResolution, DWORD dwMirro
 	// were changed by its Properties dialog, then rendering SpoutCam's output pin works fine and all filters are successfully reconnected,
 	// taking into account the new fps/resolution settings.
 
-	//if (IsConnected()) Disconnect();
-
 	SetFps(dwFps);
 	SetResolution(dwResolution);
 	receiver.m_bMirror = (dwMirror > 0);
@@ -513,7 +512,6 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 	bMemoryMode		= false; // Default mode is texture, true means memoryshare
 	bInvert         = true;  // Not currently used
 	bInitialized	= false; // Spoutcam receiver
-	bDisconnected	= false; // Has to connect before can disconnect or it will never connect
 	g_Width			= 640;	 // give it an initial size - this will be changed if a sender is running at start
 	g_Height		= 480;
 	g_SenderName[0] = 0;
@@ -584,13 +582,8 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 	put_Settings(dwFps, dwResolution, dwMirror, dwSwap, dwFlip);
 	//<==================== VS-END ======================>
 
-	//m_Fps = dwFps; //VS: removed (not used)
-	//m_Resolution = dwResolution; //VS: removed (not used)
-	// GetMediaType(0, &m_mt); //VS: moved to put_Settings
-
 	NumDroppedFrames = 0LL;
 	NumFrames = 0LL;
-	hwndButton = NULL; // ensure NULL of static variable for the OpenGL window handle
 
 	//
 	// Special purpose option : Lock to a specific sender
@@ -819,8 +812,8 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 
 	// Sizes should be OK, but check again
 	unsigned int size = (unsigned int)pms->GetSize();
-	imagesize = width*height*3; // Retrieved above
-	if(size != imagesize) {
+	// TODO : check imagesize = width*height*3;
+	if(size != imagesize) { // imagesize retrieved above
 		ReleaseCamReceiver();
 		goto ShowStatic;
 	}
@@ -832,17 +825,13 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 	}
 
 	// Initialize DirectX if is has not been done
+	// TODO : prevent retries
 	if(!bDXinitialized) {
-		if (receiver.OpenDirectX11()) {
-			g_pd3dDevice = receiver.GetDevice();
-			bDXinitialized = true;
-		}
-		else {
-			bDXinitialized = false;
+		if (!receiver.OpenDirectX11())
 			return NOERROR;
-		}
+		g_pd3dDevice = receiver.GetDevice();
+		bDXinitialized = true;
 	} // endif !bDXinitialized
-	
 
 	// Get bgr pixels from the sender bgra shared texture
 	// ReceiveImage handles sender detection, connection and copy of pixels
@@ -926,7 +915,6 @@ HRESULT CVCamStream::GetMediaType(int iPosition, CMediaType *pmt)
 	if (iPosition > 1) {
 		return VFW_S_NO_MORE_ITEMS;
 	}
-
 	
 	DECLARE_PTR(VIDEOINFOHEADER, pvi, pmt->AllocFormatBuffer(sizeof(VIDEOINFOHEADER)));
     ZeroMemory(pvi, sizeof(VIDEOINFOHEADER));
@@ -1120,8 +1108,8 @@ HRESULT STDMETHODCALLTYPE CVCamStream::GetStreamCaps(int iIndex, AM_MEDIA_TYPE *
 	// For a capture filter, the size is the largest signal the filter 
 	// can digitize with every pixel remaining unique.
 	// Note  Deprecated.
-	pvscc->InputSize.cx			= 1920;
-    pvscc->InputSize.cy			= 1080;
+	pvscc->InputSize.cx         = (LONG)width; // 1920;
+    pvscc->InputSize.cy			= (LONG)height; // 1080;
     pvscc->MinCroppingSize.cx	= 0; // LJ was 80 but we don't want to limit it
     pvscc->MinCroppingSize.cy	= 0; // was 60
     pvscc->MaxCroppingSize.cx	= 1920;

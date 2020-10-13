@@ -232,13 +232,16 @@ HRESULT CSpoutCamProperties::OnApplyChanges()
 	DWORD dwOldFps, dwOldResolution;
 	ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "fps", &dwOldFps);
 	ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "resolution", &dwOldResolution);
-	hwndCtl = GetDlgItem(this->m_Dlg, IDC_FPS);
-	dwFps = ComboBox_GetCurSel(hwndCtl);
-	hwndCtl = GetDlgItem(this->m_Dlg, IDC_RESOLUTION);
-	dwResolution = ComboBox_GetCurSel(hwndCtl);
+	dwFps = ComboBox_GetCurSel(GetDlgItem(this->m_Dlg, IDC_FPS));
+	dwResolution = ComboBox_GetCurSel(GetDlgItem(this->m_Dlg, IDC_RESOLUTION));
 	if (dwOldFps != dwFps || dwOldResolution != dwResolution) {
-		if (MessageBoxA(NULL, "For change of resolution or fps\nyou have to stop and re-start SpoutCam\nDo you want to change ? ", "Warning", MB_YESNO | MB_TOPMOST | MB_ICONQUESTION) == IDNO)
+		if (MessageBoxA(NULL, "For change of resolution or fps, you\nhave to stop and re-start SpoutCam\nDo you want to change ? ", "Warning", MB_YESNO | MB_TOPMOST | MB_ICONQUESTION) == IDNO) {
+			if (dwOldFps != dwFps)
+				ComboBox_SetCurSel(GetDlgItem(this->m_Dlg, IDC_FPS), dwOldFps);
+			if(dwOldResolution != dwResolution)
+				ComboBox_SetCurSel(GetDlgItem(this->m_Dlg, IDC_RESOLUTION), dwOldResolution);
 			return -1;
+		}
 	}
 
 	WriteDwordToRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "fps", dwFps);
