@@ -258,7 +258,11 @@
 			   Correct pvscc->InputSize.cx/cy in GetStreamCaps
 			   Clean up unused code
 			   Version 2.021
-
+	13.10.20   Correct Flip true by default
+			   Made seed for xorshiftRand static to prevent frozen image
+			   Returned to timing by RED5
+			   Conditional receive if DirectX initialization failed
+			   Version 2.022
 
 */
 
@@ -270,7 +274,7 @@
 // This is just a fast rand so that the static image isn't too slow for higher resolutions
 // Based on Marsaglia's xorshift generator (http://www.jstatsoft.org/v08/i14/paper)
 // and copied from (https://excamera.com/sphinx/article-xorshift.html)
-uint32_t seed = 7; // 100% random seed value
+static uint32_t seed = 7; // 100% random seed value
 static uint32_t xorshiftRand()
 {
 	seed ^= seed << 13;
@@ -494,7 +498,8 @@ HRESULT CVCamStream::put_Settings(DWORD dwFps, DWORD dwResolution, DWORD dwMirro
 	SetResolution(dwResolution);
 	receiver.m_bMirror = (dwMirror > 0);
 	receiver.m_bSwapRB = (dwSwap > 0);
-	bInvert = (dwFlip > 0);
+	// Flip is true by default - so false will appear inverted
+	bInvert = !(dwFlip > 0);
 
 	return GetMediaType(0, &m_mt);
 }
@@ -759,55 +764,79 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 	if (bMemoryMode)
 		return FALSE;
 
+	/*
 	//
 	// Simple timing modifed from original Vcam
 	// https://github.com/johnmaccormick/MultiCam/blob/master/vcam/Filters.cpp
-	//
-
-	// Set the timestamps that will govern playback frame rate.
-	// The current time is the sample's start.
-	REFERENCE_TIME rtNow = m_rtLastTime;
+	// Causes hesitations in some software
+	REFERENCE_TIME rtNow;
 	REFERENCE_TIME avgFrameTime = ((VIDEOINFOHEADER*)m_mt.pbFormat)->AvgTimePerFrame;
 	rtNow = m_rtLastTime;
-	// Sleep to meet the frame rate.
-	// elapsed will be zero for the first call.
-	REFERENCE_TIME elapsed = (REFERENCE_TIME)EndTiming() / 1000LL; // Sleep is msec precision
-	if (elapsed < avgFrameTime / 10000LL) {
-		DWORD dwSleep = (DWORD)(avgFrameTime / 10000LL - elapsed);
-		Sleep(dwSleep);
+	m_rtLastTime += avgFrameTime;
+	pms->SetTime(&rtNow, &m_rtLastTime);
+	pms->SetSyncPoint(TRUE);
+	*/
+
+	// Timing from Red 5
+	// Seems stable for more applications
+
+	//create some working info
+	REFERENCE_TIME rtNow, rtDelta, rtDelta2 = 0;//delta for dropped, delta 2 for sleep.
+	REFERENCE_TIME avgFrameTime = ((VIDEOINFOHEADER*)m_mt.pbFormat)->AvgTimePerFrame;
+
+	//What TIme is iT REALLY???
+	m_pParent->GetSyncSource(&m_pClock);
+
+	m_pClock->GetTime(&refSync1);
+	if (m_pClock)
+		m_pClock->Release();
+	if (NumFrames <= 1)
+	{//initiate values
+		refStart = refSync1;//FirstFrame No Drop.
+		refSync2 = 0;
+
 	}
-	// Look for dropped frames and adjust.
-	REFERENCE_TIME droppedFrames = elapsed / (avgFrameTime / 10000LL);
-	if (droppedFrames > 0) { 
-		// Our time stamping needs adjustment.
-		// Find total real stream.
-		rtNow = rtNow + droppedFrames * avgFrameTime;
+
+	rtNow = m_rtLastTime;
+	m_rtLastTime = avgFrameTime + m_rtLastTime;
+
+	//IAMDropppedFrame. We only have avgFrameTime to generate image.
+	// Find generated stream time and compare to real elapsed time
+	rtDelta = ((refSync1 - refStart) - (((NumFrames)*avgFrameTime) - avgFrameTime));
+
+	if (rtDelta - refSync2 < 0)
+	{//we are early
+		rtDelta2 = rtDelta - refSync2;
+		if (abs(rtDelta2 / 10000) >= 1)
+			Sleep(abs(rtDelta2 / 10000));
+	}
+	else 	if (rtDelta / avgFrameTime > NumDroppedFrames)
+	{	//new dropped frame
+		NumDroppedFrames = rtDelta / avgFrameTime;
+		// Figure new RT for sleeping
+		refSync2 = NumDroppedFrames * avgFrameTime;
+		//Our time stamping needs adjustment.
+		//Find total real stream time from start time
+		rtNow = refSync1 - refStart;
 		m_rtLastTime = rtNow + avgFrameTime;
 		pms->SetDiscontinuity(true);
 	}
-	else {
-		m_rtLastTime += avgFrameTime;
-	}
-
-	// The SetTime method sets the stream times when this sample should begin and finish.
 	pms->SetTime(&rtNow, &m_rtLastTime);
-	// Set true on every sample for uncompressed frames
 	pms->SetSyncPoint(TRUE);
-
-	// Reset timer for sleep calculations
-	StartTiming();
 
 	// Check access to the sample's data buffer
     pms->GetPointer(&pData);
-	if(pData == NULL)
+	if (pData == NULL) {
 		return NOERROR;
+	}
 
 	// Get the current frame size for texture transfers
     imagesize = (unsigned int)pvi->bmiHeader.biSizeImage;
 	width     = (unsigned int)pvi->bmiHeader.biWidth;
 	height    = (unsigned int)pvi->bmiHeader.biHeight;
-	if(width == 0 || height == 0)
+	if (width == 0 || height == 0) {
 		return NOERROR;
+	}
 
 
 	// Sizes should be OK, but check again
@@ -827,33 +856,35 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 	// Initialize DirectX if is has not been done
 	// TODO : prevent retries
 	if(!bDXinitialized) {
-		if (!receiver.OpenDirectX11())
+		if (!receiver.OpenDirectX11()) {
 			return NOERROR;
+		}
 		g_pd3dDevice = receiver.GetDevice();
 		bDXinitialized = true;
 	} // endif !bDXinitialized
-
-	// Get bgr pixels from the sender bgra shared texture
-	// ReceiveImage handles sender detection, connection and copy of pixels
-	if (receiver.ReceiveImage(pData, g_Width, g_Height, true, bInvert)) {
-		// rgb(not rgba) = true, invert = true
-		// If IsUpdated() returns true, the sender has changed
-		if (receiver.IsUpdated()) {
-			if (strcmp(g_SenderName, receiver.GetSenderName()) != 0) {
-				// Only test for change of sender name.
-				// The pixel buffer (pData) remains the same size and 
-				// ReceiveImage uses resampling for a different texture size
-				strcpy_s(g_SenderName, 256, receiver.GetSenderName());
-				// Set the sender name to the registry for SpoutCamSettings
-				WritePathToRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "sendername", g_SenderName);
-			}
-		}
-		bInitialized = true;
-		NumFrames++;
-		return NOERROR;
-	}
 	else {
-		ReleaseCamReceiver();
+		// Get bgr pixels from the sender bgra shared texture
+		// ReceiveImage handles sender detection, connection and copy of pixels
+		if (receiver.ReceiveImage(pData, g_Width, g_Height, true, bInvert)) {
+			// rgb(not rgba) = true, invert = true
+			// If IsUpdated() returns true, the sender has changed
+			if (receiver.IsUpdated()) {
+				if (strcmp(g_SenderName, receiver.GetSenderName()) != 0) {
+					// Only test for change of sender name.
+					// The pixel buffer (pData) remains the same size and 
+					// ReceiveImage uses resampling for a different texture size
+					strcpy_s(g_SenderName, 256, receiver.GetSenderName());
+					// Set the sender name to the registry for SpoutCamSettings
+					WritePathToRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "sendername", g_SenderName);
+				}
+			}
+			bInitialized = true;
+			NumFrames++;
+			return NOERROR;
+		}
+		else {
+			ReleaseCamReceiver();
+		}
 	}
 
 ShowStatic :
