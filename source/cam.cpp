@@ -263,6 +263,12 @@
 			   Returned to timing by RED5
 			   Conditional receive if DirectX initialization failed
 			   Version 2.022
+	16.10.20   FillBuffer correct cast for TimeGetTime calculations
+			   Use TimeBeginPeriod for maximum precision of TimeGetTime and Sleep
+			   DirectX device not required - in SpoutDX class.
+			   Do not go to static on first DirectX initialize.
+	17.10.20   Change to Unicode for WCHAR folder name support
+			   Verson 2.023
 
 */
 
@@ -293,7 +299,7 @@ CUnknown * WINAPI CVCam::CreateInstance(LPUNKNOWN lpunk, HRESULT *phr)
 	// debug console window
 	// OpenSpoutConsole(); // Empty console
 	// EnableSpoutLog(); // Show error logs
-	// printf("SpoutCamDX ~~ Vers 2.021\n");
+	// printf("SpoutCamDX ~~ Vers 2.023\n");
 
 	// For clear options dialog for scaled display
 	SetProcessDPIAware();
@@ -512,7 +518,6 @@ HRESULT CVCamStream::put_Settings(DWORD dwFps, DWORD dwResolution, DWORD dwMirro
 CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 	CSourceStream(NAME(SPOUTCAMNAME), phr, pParent, pPinName), m_pParent(pParent) //VS: replaced SpoutCamName with makro SPOUTCAMNAME, NAME() expects LPCTSTR
 {
-	g_pd3dDevice    = nullptr;
 	bDXinitialized  = false; // DirectX
 	bMemoryMode		= false; // Default mode is texture, true means memoryshare
 	bInvert         = true;  // Not currently used
@@ -521,6 +526,10 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 	g_Height		= 480;
 	g_SenderName[0] = 0;
 	g_ActiveSender[0] = 0;
+	
+	// Maximum precision of timeGetTime used in FillBuffer
+	timeGetDevCaps(&g_caps, sizeof(g_caps));
+	timeBeginPeriod(g_caps.wPeriodMin);
 
 	//
 	// Retrieve fps and resolution from registry "SpoutCamConfig"
@@ -717,6 +726,10 @@ CVCamStream::~CVCamStream()
 
 	if (bDXinitialized)
 		receiver.CleanupDX11();
+
+	// End timer precision
+	timeEndPeriod(g_caps.wPeriodMin);
+
 } 
 
 HRESULT CVCamStream::QueryInterface(REFIID riid, void **ppv)
@@ -753,7 +766,7 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 	HRESULT hr = S_OK;
     BYTE *pData = nullptr;
 
-	VIDEOINFOHEADER *pvi = (VIDEOINFOHEADER *) m_mt.Format();
+	VIDEOINFOHEADER *pvi = (VIDEOINFOHEADER *)m_mt.Format();
 
 	// If graph is inactive stop cueing samples
 	if(!m_pParent->IsActive()) {
@@ -763,66 +776,69 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 	// Memory share mode not supported by DirectX
 	if (bMemoryMode)
 		return FALSE;
-
-	/*
+	
 	//
-	// Simple timing modifed from original Vcam
-	// https://github.com/johnmaccormick/MultiCam/blob/master/vcam/Filters.cpp
-	// Causes hesitations in some software
-	REFERENCE_TIME rtNow;
-	REFERENCE_TIME avgFrameTime = ((VIDEOINFOHEADER*)m_mt.pbFormat)->AvgTimePerFrame;
-	rtNow = m_rtLastTime;
-	m_rtLastTime += avgFrameTime;
-	pms->SetTime(&rtNow, &m_rtLastTime);
-	pms->SetSyncPoint(TRUE);
-	*/
+	// Timing - modified from Red5 method
+	//
 
-	// Timing from Red 5
-	// Seems stable for more applications
+	// Set the timestamps that will govern playback frame rate.
+	// The current time is the sample's start.
+	REFERENCE_TIME rtNow = m_rtLastTime;
+	REFERENCE_TIME avgFrameTime = g_FrameTime; // Desired average frame time is set by the user
 
-	//create some working info
-	REFERENCE_TIME rtNow, rtDelta, rtDelta2 = 0;//delta for dropped, delta 2 for sleep.
-	REFERENCE_TIME avgFrameTime = ((VIDEOINFOHEADER*)m_mt.pbFormat)->AvgTimePerFrame;
+	// Create some working info
+	REFERENCE_TIME rtDelta, rtDelta2 = 0LL; // delta for dropped, delta 2 for sleep.
 
-	//What TIme is iT REALLY???
+	//
+	// What time is it REALLY ???
+	//
 	m_pParent->GetSyncSource(&m_pClock);
-
-	m_pClock->GetTime(&refSync1);
-	if (m_pClock)
+	if (m_pClock) {
+		m_pClock->GetTime(&refSync1);
 		m_pClock->Release();
-	if (NumFrames <= 1)
-	{//initiate values
-		refStart = refSync1;//FirstFrame No Drop.
-		refSync2 = 0;
+	}
+	else {
+		// Some programs do not implement the DirectShow clock and can crash if assumed
+		// so we can use TimeGetTime instead. Only millisecond precision, but so is Sleep.
+		refSync1 = (REFERENCE_TIME)timeGetTime() * 10000LL; // Cast before the multiply to avoid overflow
+	}
 
+	if (NumFrames <= 1)	{
+		// initiate values
+		refStart = refSync1; // FirstFrame No Drop
+		refSync2 = 0;
 	}
 
 	rtNow = m_rtLastTime;
 	m_rtLastTime = avgFrameTime + m_rtLastTime;
 
-	//IAMDropppedFrame. We only have avgFrameTime to generate image.
-	// Find generated stream time and compare to real elapsed time
+	// IAMDropppedFrame. We only have avgFrameTime to generate image.
+	// Find generated stream time and compare to real elapsed time.
 	rtDelta = ((refSync1 - refStart) - (((NumFrames)*avgFrameTime) - avgFrameTime));
-
-	if (rtDelta - refSync2 < 0)
-	{//we are early
+	if (rtDelta - refSync2 < 0)	{
+		// we are early
 		rtDelta2 = rtDelta - refSync2;
-		if (abs(rtDelta2 / 10000) >= 1)
-			Sleep(abs(rtDelta2 / 10000));
+		DWORD dwSleep = (DWORD)abs(rtDelta2 / 10000LL);
+		if (dwSleep >= 1)
+			Sleep(dwSleep);
 	}
-	else 	if (rtDelta / avgFrameTime > NumDroppedFrames)
-	{	//new dropped frame
+	else if (rtDelta / avgFrameTime > NumDroppedFrames)	{	
+		// new dropped frame
 		NumDroppedFrames = rtDelta / avgFrameTime;
 		// Figure new RT for sleeping
 		refSync2 = NumDroppedFrames * avgFrameTime;
-		//Our time stamping needs adjustment.
-		//Find total real stream time from start time
+		// Our time stamping needs adjustment.
+		// Find total real stream time from start time.
 		rtNow = refSync1 - refStart;
 		m_rtLastTime = rtNow + avgFrameTime;
 		pms->SetDiscontinuity(true);
 	}
-	pms->SetTime(&rtNow, &m_rtLastTime);
-	pms->SetSyncPoint(TRUE);
+
+	// The SetTime method sets the stream times when this sample should begin and finish.
+	hr = pms->SetTime(&rtNow, &m_rtLastTime);
+	// Set true on every sample for uncompressed frames
+	hr = pms->SetSyncPoint(true);
+	// ============== END OF INITIAL TIMING ============
 
 	// Check access to the sample's data buffer
     pms->GetPointer(&pData);
@@ -837,7 +853,6 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 	if (width == 0 || height == 0) {
 		return NOERROR;
 	}
-
 
 	// Sizes should be OK, but check again
 	unsigned int size = (unsigned int)pms->GetSize();
@@ -859,32 +874,31 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 		if (!receiver.OpenDirectX11()) {
 			return NOERROR;
 		}
-		g_pd3dDevice = receiver.GetDevice();
 		bDXinitialized = true;
 	} // endif !bDXinitialized
-	else {
-		// Get bgr pixels from the sender bgra shared texture
-		// ReceiveImage handles sender detection, connection and copy of pixels
-		if (receiver.ReceiveImage(pData, g_Width, g_Height, true, bInvert)) {
-			// rgb(not rgba) = true, invert = true
-			// If IsUpdated() returns true, the sender has changed
-			if (receiver.IsUpdated()) {
-				if (strcmp(g_SenderName, receiver.GetSenderName()) != 0) {
-					// Only test for change of sender name.
-					// The pixel buffer (pData) remains the same size and 
-					// ReceiveImage uses resampling for a different texture size
-					strcpy_s(g_SenderName, 256, receiver.GetSenderName());
-					// Set the sender name to the registry for SpoutCamSettings
-					WritePathToRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "sendername", g_SenderName);
-				}
+	
+	// DirectX is initialized OK
+	// Get bgr pixels from the sender bgra shared texture
+	// ReceiveImage handles sender detection, connection and copy of pixels
+	if (receiver.ReceiveImage(pData, g_Width, g_Height, true, bInvert)) {
+		// rgb(not rgba) = true, invert = true
+		// If IsUpdated() returns true, the sender has changed
+		if (receiver.IsUpdated()) {
+			if (strcmp(g_SenderName, receiver.GetSenderName()) != 0) {
+				// Only test for change of sender name.
+				// The pixel buffer (pData) remains the same size and 
+				// ReceiveImage uses resampling for a different texture size
+				strcpy_s(g_SenderName, 256, receiver.GetSenderName());
+				// Set the sender name to the registry for SpoutCamSettings
+				WritePathToRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "sendername", g_SenderName);
 			}
-			bInitialized = true;
-			NumFrames++;
-			return NOERROR;
 		}
-		else {
-			ReleaseCamReceiver();
-		}
+		bInitialized = true;
+		NumFrames++;
+		return NOERROR;
+	}
+	else {
+		ReleaseCamReceiver();
 	}
 
 ShowStatic :
@@ -989,7 +1003,6 @@ HRESULT CVCamStream::GetMediaType(int iPosition, CMediaType *pmt)
     const GUID SubTypeGUID = GetBitmapSubtype(&pvi->bmiHeader);
     pmt->SetSubtype(&SubTypeGUID);
 	pmt->SetVariableSize(); // LJ - to be checked
-
     pmt->SetSampleSize(pvi->bmiHeader.biSizeImage);
 
     return NOERROR;

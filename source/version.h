@@ -9,7 +9,7 @@
 #define _VER_MAJORVERSION_STRING "2"
 
 #define _VER_MINORVERSION 1
-#define _VER_MINORVERSION_STRING "022"     
+#define _VER_MINORVERSION_STRING "023"     
 														
 #define _VER_BUGFIXVERSION 0
 #define _VER_BUGFIXVERSION_STRING "0"

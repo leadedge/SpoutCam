@@ -31,6 +31,11 @@
 #include "..\SpoutDX\source\SpoutDX.h"
 #include <streams.h>
 
+// LJ DEBUG
+#include <chrono>
+#include <thread>
+using namespace std::chrono_literals;
+
 //<==================== VS-START ====================>
 #include "dshowutil.h"
 
@@ -210,7 +215,6 @@ public:
 	
 	char g_SenderName[256];
 	char g_ActiveSender[256];    // The name of any Spout sender being received
-	ID3D11Device* g_pd3dDevice;  // DirectX 11.0 device pointer
 	bool bMemoryMode;            // true = memory, false = texture
 	bool bInvert;
 	bool bInitialized;
@@ -222,6 +226,7 @@ public:
 	DWORD dwFps;					// Fps from SpoutCamConfig
 	DWORD dwResolution;				// Resolution from SpoutCamConfig
 	int g_FrameTime;                // Frame time to use based on fps selection
+	TIMECAPS g_caps;                // Timer capability for Sleep precision
 
 private:
 

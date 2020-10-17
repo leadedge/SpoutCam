@@ -140,21 +140,23 @@ HRESULT RegisterFilter(
 
 STDAPI RegisterFilters( BOOL bRegister )
 {
+	ASSERT(g_hInst != 0);
+
     HRESULT hr = NOERROR;
     WCHAR achFileName[MAX_PATH];
-    char achTemp[MAX_PATH];
-    ASSERT(g_hInst != 0);
+	
+	//<==================== VS-START ====================>
+	if (0 == GetModuleFileNameW(g_hInst, achFileName, sizeof(achFileName)))
+	{
+		return AmHresultFromWin32(GetLastError());
+	}
+	//<==================== VS-END ====================>
 
-    if( 0 == GetModuleFileNameA(g_hInst, achTemp, sizeof(achTemp))) 
-        return AmHresultFromWin32(GetLastError());
-
-    MultiByteToWideChar(CP_ACP, 0L, achTemp, lstrlenA(achTemp) + 1, 
-                       achFileName, NUMELMS(achFileName));
-  
     hr = CoInitialize(0);
     if(bRegister)
     {
 		hr = AMovieSetupRegisterServer(CLSID_SpoutCam, SpoutCamName, achFileName, L"Both", L"InprocServer32");
+		hr = AMovieSetupRegisterServer(CLSID_SpoutCamPropertyPage, L"Settings", achFileName, L"Both", L"InprocServer32"); //VS
     }
 
     if( SUCCEEDED(hr) )
@@ -184,8 +186,11 @@ STDAPI RegisterFilters( BOOL bRegister )
           fm->Release();
     }
 
-    if( SUCCEEDED(hr) && !bRegister )
-        hr = AMovieSetupUnregisterServer( CLSID_SpoutCam );
+	if (SUCCEEDED(hr) && !bRegister)
+	{
+		hr = AMovieSetupUnregisterServer(CLSID_SpoutCam);
+		hr = AMovieSetupUnregisterServer(CLSID_SpoutCamPropertyPage); //VS
+	}
 
     CoFreeUnusedLibraries();
     CoUninitialize();
@@ -196,20 +201,12 @@ STDAPI RegisterFilters( BOOL bRegister )
 // see http://msdn.microsoft.com/en-us/library/windows/desktop/dd376682%28v=vs.85%29.aspx
 STDAPI DllRegisterServer()
 {
-	//<==================== VS-START ====================>
-	HRESULT hr = RegisterFilters(TRUE);
-	if (SUCCEEDED(hr)) hr = AMovieDllRegisterServer2(TRUE);
-	return hr;
-	//<==================== VS-END ======================>
+	return RegisterFilters(TRUE);
 }
 
 STDAPI DllUnregisterServer()
 {
-	//<==================== VS-START ====================>
-	HRESULT hr = RegisterFilters(FALSE);
-	if (SUCCEEDED(hr)) hr = AMovieDllRegisterServer2(FALSE);
-	return hr;
-	//<==================== VS-END ======================>
+	return RegisterFilters(FALSE);
 }
 
 //<==================== VS-START ====================>

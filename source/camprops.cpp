@@ -112,23 +112,23 @@ HRESULT CSpoutCamProperties::OnActivate()
 
 	hwndCtl = GetDlgItem(this->m_Dlg, IDC_FPS);
 	
-	char fps_values[6][3] =
+	WCHAR fps_values[6][3] =
 	{
-		"10",
-		"15",
-		"25",
-		"30", // default
-		"50",
-		"60"
+		L"10",
+		L"15",
+		L"25",
+		L"30", // default
+		L"50",
+		L"60"
 	};
 
-	char fps[3];
+	WCHAR fps[3];
 	int k = 0;
 
 	memset(&fps, 0, sizeof(fps));
 	for (k = 0; k <= 5; k += 1)
 	{
-		strcpy_s(fps, sizeof(fps) / sizeof(char), (char*)fps_values[k]);
+		wcscpy_s(fps, sizeof(fps) / sizeof(WCHAR), fps_values[k]);
 		ComboBox_AddString(hwndCtl, fps);
 	}
 
@@ -147,26 +147,26 @@ HRESULT CSpoutCamProperties::OnActivate()
 
 	hwndCtl = GetDlgItem(this->m_Dlg, IDC_RESOLUTION);
 
-	char res_values[11][14] =
+	WCHAR res_values[11][14] =
 	{
-		"Active Sender",
-		"320 x 240",
-		"640 x 360",
-		"640 x 480", // default if no sender
-		"800 x 600",
-		"1024 x 720",
-		"1024 x 768",
-		"1280 x 720",
-		"1280 x 960",
-		"1280 x 1024",
-		"1920 x 1080"
+		L"Active Sender",
+		L"320 x 240",
+		L"640 x 360",
+		L"640 x 480", // default if no sender
+		L"800 x 600",
+		L"1024 x 720",
+		L"1024 x 768",
+		L"1280 x 720",
+		L"1280 x 960",
+		L"1280 x 1024",
+		L"1920 x 1080"
 	};
 
-	char res[14];
+	WCHAR res[14];
 	memset(&res, 0, sizeof(res));
 	for (k = 0; k <= 10; k += 1)
 	{
-		strcpy_s(res, sizeof(res) / sizeof(char), (char*)res_values[k]);
+		wcscpy_s(res, sizeof(res) / sizeof(WCHAR), res_values[k]);
 		ComboBox_AddString(hwndCtl, res);
 	}
 
@@ -208,7 +208,7 @@ HRESULT CSpoutCamProperties::OnActivate()
 
 	// Show SpoutCam version
 	hwndCtl = GetDlgItem(this->m_Dlg, IDC_VERS);
-	Static_SetText(hwndCtl, "Version: " _VER_VERSION_STRING);
+	Static_SetText(hwndCtl, L"Version: " _VER_VERSION_STRING);
 	
 	m_bIsInitialized = TRUE;
 
@@ -225,9 +225,9 @@ HRESULT CSpoutCamProperties::OnApplyChanges()
 {
 	TRACE("OnApplyChanges");
 
-	HWND hwndCtl;
 	DWORD dwFps, dwResolution, dwMirror, dwSwap, dwFlip;
 
+	// =================================
 	// Get old fps and resolution for user warning
 	DWORD dwOldFps, dwOldResolution;
 	ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "fps", &dwOldFps);
@@ -238,16 +238,18 @@ HRESULT CSpoutCamProperties::OnApplyChanges()
 		if (MessageBoxA(NULL, "For change of resolution or fps, you\nhave to stop and re-start SpoutCam\nDo you want to change ? ", "Warning", MB_YESNO | MB_TOPMOST | MB_ICONQUESTION) == IDNO) {
 			if (dwOldFps != dwFps)
 				ComboBox_SetCurSel(GetDlgItem(this->m_Dlg, IDC_FPS), dwOldFps);
-			if(dwOldResolution != dwResolution)
+			if (dwOldResolution != dwResolution)
 				ComboBox_SetCurSel(GetDlgItem(this->m_Dlg, IDC_RESOLUTION), dwOldResolution);
 			return -1;
 		}
 	}
 
+	// =================================
+
 	WriteDwordToRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "fps", dwFps);
 	WriteDwordToRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "resolution", dwResolution);
 
-	hwndCtl = GetDlgItem(this->m_Dlg, IDC_MIRROR);
+	HWND hwndCtl = GetDlgItem(this->m_Dlg, IDC_MIRROR);
 	dwMirror = Button_GetCheck(hwndCtl);
 	WriteDwordToRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "mirror", dwMirror);
 
@@ -258,7 +260,7 @@ HRESULT CSpoutCamProperties::OnApplyChanges()
 	hwndCtl = GetDlgItem(this->m_Dlg, IDC_FLIP);
 	dwFlip = Button_GetCheck(hwndCtl);
 	WriteDwordToRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "flip", dwFlip);
-
+	
 	if (m_pCamSettings)
 		m_pCamSettings->put_Settings(dwFps, dwResolution, dwMirror, dwSwap, dwFlip);
 

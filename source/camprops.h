@@ -13,13 +13,12 @@ private:
 	HRESULT OnConnect(IUnknown *pUnknown);
 	HRESULT OnDisconnect();
 	HRESULT OnActivate();
-	// HRESULT OnDeactivate();
+	//HRESULT OnDeactivate();
 	HRESULT OnApplyChanges();
 
 	CSpoutCamProperties(LPUNKNOWN lpunk, HRESULT *phr);
 
 	BOOL m_bIsInitialized;      // Used to ignore startup messages
 	ICamSettings *m_pCamSettings;     // The custom interface on the filter
-
 };
 
