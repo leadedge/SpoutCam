@@ -8,6 +8,7 @@
 //	28.09.15 - updated with modifications by John MacCormick, 2012.
 //	10.07.16 - Modified for "SpoutCamConfig" for starting fps and resolution
 //	17.10.19 - Clean up for DirectX methods
+//	13.10.20 - Clean up unused variables
 //
 
 #pragma once
@@ -15,7 +16,6 @@
 #pragma warning(disable:4995)
 
 #define DECLARE_PTR(type, ptr, expr) type* ptr = (type*)(expr);
-
 
 // leak checking
 // http://www.codeproject.com/Articles/9815/Visual-Leak-Detector-Enhanced-Memory-Leak-Detectio
@@ -31,11 +31,41 @@
 #include "..\SpoutDX\source\SpoutDX.h"
 #include <streams.h>
 
+// LJ DEBUG
+#include <chrono>
+#include <thread>
+using namespace std::chrono_literals;
+
+//<==================== VS-START ====================>
+#include "dshowutil.h"
+
+// we need a LPCTSTR for the NAME() makros in debug mode
+#define SPOUTCAMNAME "SpoutCam"
+
+extern "C" {
+	DECLARE_INTERFACE_(ICamSettings, IUnknown)
+	{
+		STDMETHOD(put_Settings) (THIS_
+			DWORD dwFps,
+			DWORD dwResolution,
+			DWORD dwMirror, 
+			DWORD dwSwap, 
+			DWORD dwFlip
+			) PURE;
+	};
+}
+
+EXTERN_C const GUID CLSID_SpoutCamPropertyPage;
+EXTERN_C const GUID IID_ICamSettings;
+//<==================== VS-END ======================>
+
 EXTERN_C const GUID CLSID_SpoutCam;
 EXTERN_C const WCHAR SpoutCamName[MAX_PATH];
 
 class CVCamStream;
-class CVCam : public CSource
+class CVCam : public CSource,
+	public ISpecifyPropertyPages,//VS
+	public ICamSettings//VS
 {
 public:
     //////////////////////////////////////////////////////////////////////////
@@ -50,6 +80,14 @@ public:
     IFilterGraph *GetGraph() {return m_pGraph;}
 
 	STDMETHODIMP JoinFilterGraph(__inout_opt IFilterGraph * pGraph, __in_opt LPCWSTR pName);
+
+	//<==================== VS-START ====================>
+	// ISpecifyPropertyPages interface
+	STDMETHODIMP GetPages(CAUUID *pPages);
+
+	// ICamSettings interface
+	STDMETHODIMP put_Settings(DWORD dwFps, DWORD dwResolution, DWORD dwMirror, DWORD dwSwap, DWORD dwFlip);
+	//<==================== VS-END ======================>
 
 private:
 
@@ -162,13 +200,11 @@ public:
     HRESULT GetMediaType(int iPosition, CMediaType *pmt);
     HRESULT SetMediaType(const CMediaType *pmt);
     HRESULT OnThreadCreate(void);
-
-	int m_Fps;
-	int m_Resolution;
-	bool m_bLock;
 	
+	HRESULT put_Settings(DWORD dwFps, DWORD dwResolution, DWORD dwMirror, DWORD dwSwap, DWORD dwFlip); //VS
 	void SetFps(DWORD dwFps);
 	void SetResolution(DWORD dwResolution);
+	void ReleaseCamReceiver();
 
 	// ============== IPC functions ==============
 	//
@@ -179,23 +215,18 @@ public:
 	
 	char g_SenderName[256];
 	char g_ActiveSender[256];    // The name of any Spout sender being received
-	ID3D11Device* g_pd3dDevice;  // DirectX 11.0 device pointer
 	bool bMemoryMode;            // true = memory, false = texture
 	bool bInvert;
-	bool bDebug;
 	bool bInitialized;
 	bool bDXinitialized;
-	bool bDisconnected;				// Sender had started but it has stopped or changed image size
-
-	GLenum glBGRmode;
 
 	unsigned int g_Width;			 // The global filter image width
 	unsigned int g_Height;			 // The global filter image height
 
 	DWORD dwFps;					// Fps from SpoutCamConfig
 	DWORD dwResolution;				// Resolution from SpoutCamConfig
-	DWORD dwLock;                   // Fix to the selected resolution
 	int g_FrameTime;                // Frame time to use based on fps selection
+	TIMECAPS g_caps;                // Timer capability for Sleep precision
 
 private:
 
