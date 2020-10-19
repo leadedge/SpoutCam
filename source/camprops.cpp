@@ -9,6 +9,10 @@
 #include "resource.h"
 #include "version.h"
 
+
+// For dialog drawing
+static HBRUSH g_hbrBkgnd = NULL;
+
 // CreateInstance
 // Used by the DirectShow base classes to create instances
 CUnknown *CSpoutCamProperties::CreateInstance(LPUNKNOWN lpunk, HRESULT *phr)
@@ -37,10 +41,78 @@ CSpoutCamProperties::CSpoutCamProperties(LPUNKNOWN pUnk, HRESULT *phr) :
 //OnReceiveMessage is called when the dialog receives a window message.
 INT_PTR CSpoutCamProperties::OnReceiveMessage(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
+	HCURSOR cursorHand = NULL;
+	LPDRAWITEMSTRUCT lpdis;
+	std::wstring wstr;
+
 	switch (uMsg)
 	{
+		// Owner draw button
+	case WM_CTLCOLORSTATIC:
+		{
+			HDC hdcStatic = (HDC)wParam;
+			
+			// Make disable warnings light red
+			if (GetDlgItem(hwnd, IDC_SILENT) == (HWND)lParam) {
+				SetTextColor(hdcStatic, RGB(128, 64, 64));
+				SetBkColor(hdcStatic, RGB(240, 240, 240));
+				if (g_hbrBkgnd == NULL)
+					g_hbrBkgnd = CreateSolidBrush(RGB(240, 240, 240));
+			}
+
+			// Make version light grey
+			if (GetDlgItem(hwnd, IDC_VERS) == (HWND)lParam) {
+				SetTextColor(hdcStatic, RGB(128, 128, 128));
+				SetBkColor(hdcStatic, RGB(240, 240, 240));
+				if (g_hbrBkgnd == NULL)
+					g_hbrBkgnd = CreateSolidBrush(RGB(240, 240, 240));
+			}
+
+			return (INT_PTR)g_hbrBkgnd;
+		}
+		break;
+
+	case WM_DRAWITEM:
+			lpdis = (LPDRAWITEMSTRUCT)lParam;
+			if (lpdis->itemID == -1) break;
+			switch (lpdis->CtlID) {
+				// The blue hyperlink
+				case IDC_SPOUT_URL:
+					SetTextColor(lpdis->hDC, RGB(6, 69, 173));
+					DrawText(lpdis->hDC, L"https://spout.zeal.co", -1, &lpdis->rcItem, DT_LEFT);
+					break;
+
+				default:
+					break;
+			}
+			break;
+
+		case WM_INITDIALOG:
+			// Hyperlink hand cursor
+			cursorHand = LoadCursor(NULL, IDC_HAND);
+			SetClassLongPtr(GetDlgItem(hwnd, IDC_SPOUT_URL), GCLP_HCURSOR, (LONG_PTR)cursorHand);
+			break;
+
 		case WM_COMMAND:
 		{
+			switch (LOWORD(wParam)) {
+
+				case IDC_SPOUT_URL :
+					ShellExecute(hwnd, L"open", L"http://spout.zeal.co", NULL, NULL, SW_SHOWNORMAL);
+					break;
+				
+				case IDC_SILENT:
+					// Toggle warning silent mode
+					if (IsDlgButtonChecked(hwnd, IDC_SILENT) == BST_CHECKED)
+						m_bSilent = TRUE;
+					else
+						m_bSilent = FALSE;
+					break;
+
+				default :
+					break;
+			}
+
 			if (m_bIsInitialized)
 			{
 				m_bDirty = TRUE;
@@ -49,6 +121,7 @@ INT_PTR CSpoutCamProperties::OnReceiveMessage(HWND hwnd, UINT uMsg, WPARAM wPara
 					m_pPageSite->OnStatusChange(PROPPAGESTATUS_DIRTY);
 				}
 			}
+
 			return (LRESULT)1;
 		}
 	}
@@ -97,8 +170,8 @@ HRESULT CSpoutCamProperties::OnActivate()
 {
 	TRACE("OnActivate");
 
-	HWND hwndCtl;
-	DWORD dwValue;
+	HWND hwndCtl = nullptr;
+	DWORD dwValue = 0;
 
 	////////////////////////////////////////
 	// Fps
@@ -206,10 +279,19 @@ HRESULT CSpoutCamProperties::OnActivate()
 	hwndCtl = GetDlgItem(this->m_Dlg, IDC_FLIP);
 	Button_SetCheck(hwndCtl, dwValue);
 
+	// Warning disable mode
+	if (!ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "silent", &dwValue))
+	{
+		dwValue = 0; // Disable warnings off by default
+	}
+	m_bSilent = (dwValue > 0);
+	hwndCtl = GetDlgItem(this->m_Dlg, IDC_SILENT);
+	Button_SetCheck(hwndCtl, dwValue);
+
 	// Show SpoutCam version
 	hwndCtl = GetDlgItem(this->m_Dlg, IDC_VERS);
 	Static_SetText(hwndCtl, L"Version: " _VER_VERSION_STRING);
-	
+
 	m_bIsInitialized = TRUE;
 
 	if (m_pPageSite)
@@ -220,12 +302,20 @@ HRESULT CSpoutCamProperties::OnActivate()
 	return S_OK;
 }
 
+//OnDeActivate is called when the dialog is closed.
+HRESULT CSpoutCamProperties::OnDeactivate()
+{
+	if (g_hbrBkgnd)
+		DeleteObject(g_hbrBkgnd);
+	return S_OK;
+}
+
 //OnApplyChanges is called when the user commits the property changes by clicking the OK or Apply button.
 HRESULT CSpoutCamProperties::OnApplyChanges()
 {
 	TRACE("OnApplyChanges");
 
-	DWORD dwFps, dwResolution, dwMirror, dwSwap, dwFlip;
+	DWORD dwFps, dwResolution, dwMirror, dwSwap, dwFlip, dwSilent;
 
 	// =================================
 	// Get old fps and resolution for user warning
@@ -234,16 +324,18 @@ HRESULT CSpoutCamProperties::OnApplyChanges()
 	ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "resolution", &dwOldResolution);
 	dwFps = ComboBox_GetCurSel(GetDlgItem(this->m_Dlg, IDC_FPS));
 	dwResolution = ComboBox_GetCurSel(GetDlgItem(this->m_Dlg, IDC_RESOLUTION));
-	if (dwOldFps != dwFps || dwOldResolution != dwResolution) {
-		if (MessageBoxA(NULL, "For change of resolution or fps, you\nhave to stop and re-start SpoutCam\nDo you want to change ? ", "Warning", MB_YESNO | MB_TOPMOST | MB_ICONQUESTION) == IDNO) {
-			if (dwOldFps != dwFps)
-				ComboBox_SetCurSel(GetDlgItem(this->m_Dlg, IDC_FPS), dwOldFps);
-			if (dwOldResolution != dwResolution)
-				ComboBox_SetCurSel(GetDlgItem(this->m_Dlg, IDC_RESOLUTION), dwOldResolution);
-			return -1;
+	// Warn unless disabled
+	if (!m_bSilent) {
+		if (dwOldFps != dwFps || dwOldResolution != dwResolution) {
+			if (MessageBoxA(NULL, "For change of resolution or fps, you\nhave to stop and re-start SpoutCam\nDo you want to change ? ", "Warning", MB_YESNO | MB_TOPMOST | MB_ICONQUESTION) == IDNO) {
+				if (dwOldFps != dwFps)
+					ComboBox_SetCurSel(GetDlgItem(this->m_Dlg, IDC_FPS), dwOldFps);
+				if (dwOldResolution != dwResolution)
+					ComboBox_SetCurSel(GetDlgItem(this->m_Dlg, IDC_RESOLUTION), dwOldResolution);
+				return -1;
+			}
 		}
 	}
-
 	// =================================
 
 	WriteDwordToRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "fps", dwFps);
@@ -260,6 +352,10 @@ HRESULT CSpoutCamProperties::OnApplyChanges()
 	hwndCtl = GetDlgItem(this->m_Dlg, IDC_FLIP);
 	dwFlip = Button_GetCheck(hwndCtl);
 	WriteDwordToRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "flip", dwFlip);
+
+	// Silent mode is set only by the properties dialog
+	dwSilent = Button_GetCheck(GetDlgItem(this->m_Dlg, IDC_SILENT));
+	WriteDwordToRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "silent", dwSilent);
 	
 	if (m_pCamSettings)
 		m_pCamSettings->put_Settings(dwFps, dwResolution, dwMirror, dwSwap, dwFlip);

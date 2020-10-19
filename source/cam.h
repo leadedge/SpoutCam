@@ -216,7 +216,7 @@ public:
 	char g_SenderName[256];
 	char g_ActiveSender[256];    // The name of any Spout sender being received
 	bool bMemoryMode;            // true = memory, false = texture
-	bool bInvert;
+	bool bInvert;                // Flip vertically
 	bool bInitialized;
 	bool bDXinitialized;
 

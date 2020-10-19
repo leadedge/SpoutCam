@@ -268,7 +268,13 @@
 			   DirectX device not required - in SpoutDX class.
 			   Do not go to static on first DirectX initialize.
 	17.10.20   Change to Unicode for WCHAR folder name support
+			   Copy files to SpoutCam2017_DX project and GitHub DirectX master branch
 			   Verson 2.023
+	19.10.20   Add Spout website URL to properties dialog.
+			   Add disable warnings checkbox mode to camprops.cpp.
+			   Only for properties dialog - see OnReceiveMessage
+			   Change version.h for unicode wide strings
+			   Verson 2.024
 
 */
 
@@ -299,7 +305,7 @@ CUnknown * WINAPI CVCam::CreateInstance(LPUNKNOWN lpunk, HRESULT *phr)
 	// debug console window
 	// OpenSpoutConsole(); // Empty console
 	// EnableSpoutLog(); // Show error logs
-	// printf("SpoutCamDX ~~ Vers 2.023\n");
+	// printf("SpoutCamDX ~~ Vers 2.024\n");
 
 	// For clear options dialog for scaled display
 	SetProcessDPIAware();
@@ -520,7 +526,7 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 {
 	bDXinitialized  = false; // DirectX
 	bMemoryMode		= false; // Default mode is texture, true means memoryshare
-	bInvert         = true;  // Not currently used
+	bInvert         = true;  // Flip vertically
 	bInitialized	= false; // Spoutcam receiver
 	g_Width			= 640;	 // give it an initial size - this will be changed if a sender is running at start
 	g_Height		= 480;
