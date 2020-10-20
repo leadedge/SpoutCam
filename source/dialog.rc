@@ -30,12 +30,6 @@ FONT 8, "Ms Shell Dlg"
 	AUTOCHECKBOX    "Disable warnings", IDC_SILENT, 130, 120, 65, 8, 0, WS_EX_LEFT
 }
 
-//
-// Icon resources
-//
-LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
-IDI_SPOUTICON      ICON           "SpoutLogo4.ico"
-
 /////////////////////////////////////////////////////////////////////////////
 //
 // String Table

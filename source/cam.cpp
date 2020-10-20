@@ -269,12 +269,12 @@
 			   Do not go to static on first DirectX initialize.
 	17.10.20   Change to Unicode for WCHAR folder name support
 			   Copy files to SpoutCam2017_DX project and GitHub DirectX master branch
-			   Verson 2.023
+			   Version 2.023
 	19.10.20   Add Spout website URL to properties dialog.
 			   Add disable warnings checkbox mode to camprops.cpp.
 			   Only for properties dialog - see OnReceiveMessage
 			   Change version.h for unicode wide strings
-			   Verson 2.024
+			   Version 2.024
 
 */
 

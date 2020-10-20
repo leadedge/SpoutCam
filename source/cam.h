@@ -9,6 +9,7 @@
 //	10.07.16 - Modified for "SpoutCamConfig" for starting fps and resolution
 //	17.10.19 - Clean up for DirectX methods
 //	13.10.20 - Clean up unused variables
+//	20.10.20 - Clean up std::chrono debugging
 //
 
 #pragma once
@@ -30,11 +31,6 @@
 
 #include "..\SpoutDX\source\SpoutDX.h"
 #include <streams.h>
-
-// LJ DEBUG
-#include <chrono>
-#include <thread>
-using namespace std::chrono_literals;
 
 //<==================== VS-START ====================>
 #include "dshowutil.h"
