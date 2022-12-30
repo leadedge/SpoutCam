@@ -52,9 +52,9 @@ INT_PTR CSpoutCamProperties::OnReceiveMessage(HWND hwnd, UINT uMsg, WPARAM wPara
 		{
 			HDC hdcStatic = (HDC)wParam;
 			
-			// Make disable warnings light red
+			// Make disable warnings light grey
 			if (GetDlgItem(hwnd, IDC_SILENT) == (HWND)lParam) {
-				SetTextColor(hdcStatic, RGB(128, 64, 64));
+				SetTextColor(hdcStatic, RGB(128, 128, 128));
 				SetBkColor(hdcStatic, RGB(240, 240, 240));
 				if (g_hbrBkgnd == NULL)
 					g_hbrBkgnd = CreateSolidBrush(RGB(240, 240, 240));
@@ -172,6 +172,8 @@ HRESULT CSpoutCamProperties::OnActivate()
 
 	HWND hwndCtl = nullptr;
 	DWORD dwValue = 0;
+	wchar_t wname[256];
+	char name[256];
 
 	////////////////////////////////////////
 	// Fps
@@ -247,6 +249,24 @@ HRESULT CSpoutCamProperties::OnActivate()
 	ComboBox_SetCurSel(hwndCtl, dwValue);
 
 	////////////////////////////////////////
+	// Starting sender name
+	////////////////////////////////////////
+
+	// Note - registry read is not wide chars
+	if (!ReadPathFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "senderstart", name))
+	{
+		wname[0] = 0;
+	}
+	if (wname[0] != 0) {
+		// Convert registry char* string to a wchar_t* string.
+		size_t convertedChars = 0;
+		mbstowcs_s(&convertedChars, wname, 256, name, 256);
+		// Show it in the dialog edit control
+		hwndCtl = GetDlgItem(this->m_Dlg, IDC_NAME);
+		Edit_SetText(hwndCtl, wname);
+	}
+
+	////////////////////////////////////////
 	// Mirror image
 	////////////////////////////////////////
 	if (!ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "mirror", &dwValue))
@@ -316,6 +336,8 @@ HRESULT CSpoutCamProperties::OnApplyChanges()
 	TRACE("OnApplyChanges");
 
 	DWORD dwFps, dwResolution, dwMirror, dwSwap, dwFlip, dwSilent;
+	wchar_t wname[256];
+	char name[256];
 
 	// =================================
 	// Get old fps and resolution for user warning
@@ -336,12 +358,20 @@ HRESULT CSpoutCamProperties::OnApplyChanges()
 			}
 		}
 	}
-	// =================================
-
 	WriteDwordToRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "fps", dwFps);
 	WriteDwordToRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "resolution", dwResolution);
+	// =================================
 
-	HWND hwndCtl = GetDlgItem(this->m_Dlg, IDC_MIRROR);
+	// If properties is implemented, the dialog may need to be updated 
+	// to be the same as SpoutCamSettings
+	HWND hwndCtl = GetDlgItem(this->m_Dlg, IDC_NAME);
+	wname[0] = 0;
+	Edit_GetText(hwndCtl, wname, 256);
+	size_t convertedChars = 0;
+	wcstombs_s(&convertedChars, name, 256, wname, _TRUNCATE);
+	WritePathToRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "senderstart", name);
+
+	hwndCtl = GetDlgItem(this->m_Dlg, IDC_MIRROR);
 	dwMirror = Button_GetCheck(hwndCtl);
 	WriteDwordToRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "mirror", dwMirror);
 
@@ -358,7 +388,7 @@ HRESULT CSpoutCamProperties::OnApplyChanges()
 	WriteDwordToRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "silent", dwSilent);
 	
 	if (m_pCamSettings)
-		m_pCamSettings->put_Settings(dwFps, dwResolution, dwMirror, dwSwap, dwFlip);
+		m_pCamSettings->put_Settings(dwFps, dwResolution, dwMirror, dwSwap, dwFlip, name);
 
 	return S_OK;
 }

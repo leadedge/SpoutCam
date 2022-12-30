@@ -1,13 +1,18 @@
+//
+// Header: SpoutCommon.h
+//
+// Enables build of the SDK as a DLL.
+//
+// Includes header for common utilities namespace "SpoutUtils".
+//
+// Optional _#define legacyOpenGL_ to enable legacy draw functions
+//
+
 /*
+		Thanks and credit to Malcolm Bechard, the author of this file
+		https://github.com/mbechard
 
-			SpoutCommon.h
-
-			Enables build of the SDK as a DLL
-			Includes header for utilities - SpoutUtils
-			Optional legacyOpenGL define to enable legacy draw functions
-
-
-		Copyright (c) 2014-2020, Lynn Jarvis. All rights reserved.
+		Copyright (c) 2014-2023, Lynn Jarvis. All rights reserved.
 
 		Redistribution and use in source and binary forms, with or without modification, 
 		are permitted provided that the following conditions are met:
@@ -36,6 +41,11 @@
 #ifndef __SpoutCommon__
 #define __SpoutCommon__
 
+//
+// To build the Spout library as a dll, define
+// SPOUT_BUILD_DLL in the preprocessor defines.
+// Properties > C++ > Preprocessor > Preprocessor Definitions
+//
 #if defined(_MSC_VER)
 	#if defined(SPOUT_BUILD_DLL)
 		#define SPOUT_DLLEXP	__declspec(dllexport)
@@ -48,12 +58,26 @@
 	#define SPOUT_DLLEXP
 #endif // _MSC_VERR
 
-// This definition enables legacy OpenGL rendering code
-// used for shared texture Draw functions in SpoutGLDXinterop.cpp
-// Disabled by default for OpenGL 4 compliance
-// #define legacyOpenGL
-
 // Common utility functions namespace
 #include "SpoutUtils.h"
+
+//
+// This definition enables legacy OpenGL rendering code
+// used for shared texture Draw functions in SpoutGLDXinterop.cpp
+// Not required unless compatibility with OpenGL < 3 is necessary
+// Disabled by default for OpenGL 4 compliance
+// * Note that the same definition is necessary in SpoutGLextensions.h
+//   so that SpoutGLextensions can be used independently of the Spout library.
+//
+// #define legacyOpenGL
+//
+
+//
+// Visual Studio code analysis warnings
+//
+
+// C++11 scoped (class) enums are not compatible with early compilers (< VS2012 and others).
+// The warning is designated "Prefer" and "C" standard unscoped enums are retained for compatibility.
+#pragma warning(disable:26812) // unscoped enums
 
 #endif

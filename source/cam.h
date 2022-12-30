@@ -46,7 +46,8 @@ extern "C" {
 			DWORD dwResolution,
 			DWORD dwMirror, 
 			DWORD dwSwap, 
-			DWORD dwFlip
+			DWORD dwFlip,
+			const char *name
 			) PURE;
 	};
 }
@@ -82,7 +83,7 @@ public:
 	STDMETHODIMP GetPages(CAUUID *pPages);
 
 	// ICamSettings interface
-	STDMETHODIMP put_Settings(DWORD dwFps, DWORD dwResolution, DWORD dwMirror, DWORD dwSwap, DWORD dwFlip);
+	STDMETHODIMP put_Settings(DWORD dwFps, DWORD dwResolution, DWORD dwMirror, DWORD dwSwap, DWORD dwFlip, const char *name);
 	//<==================== VS-END ======================>
 
 private:
@@ -197,7 +198,7 @@ public:
     HRESULT SetMediaType(const CMediaType *pmt);
     HRESULT OnThreadCreate(void);
 	
-	HRESULT put_Settings(DWORD dwFps, DWORD dwResolution, DWORD dwMirror, DWORD dwSwap, DWORD dwFlip); //VS
+	HRESULT put_Settings(DWORD dwFps, DWORD dwResolution, DWORD dwMirror, DWORD dwSwap, DWORD dwFlip, const char *name); //VS
 	void SetFps(DWORD dwFps);
 	void SetResolution(DWORD dwResolution);
 	void ReleaseCamReceiver();
@@ -211,6 +212,7 @@ public:
 	
 	char g_SenderName[256];
 	char g_ActiveSender[256];    // The name of any Spout sender being received
+	char g_SenderStart[256];     // The starting sender name
 	bool bMemoryMode;            // true = memory, false = texture
 	bool bInvert;                // Flip vertically
 	bool bInitialized;

@@ -7,7 +7,7 @@
 	https://github.com/mbechard
 
 	- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-	Copyright (c) 2014-2020, Lynn Jarvis. All rights reserved.
+	Copyright (c) 2014-2023, Lynn Jarvis. All rights reserved.
 
 	Redistribution and use in source and binary forms, with or without modification, 
 	are permitted provided that the following conditions are met:
@@ -30,6 +30,7 @@
 	OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
+
 #pragma once
 
 #ifndef __SpoutSharedMemory_ // standard way as well
@@ -42,9 +43,10 @@
 
 using namespace spoututils;
 
+//
 // Result of memory segment creation
-enum SpoutCreateResult
-{
+//
+enum SpoutCreateResult {
 	SPOUT_CREATE_FAILED = 0,
 	SPOUT_CREATE_SUCCESS,
 	SPOUT_ALREADY_EXISTS,
@@ -72,6 +74,12 @@ public:
 
 	// Unlock a map
 	void Unlock();
+
+	// Name of an existing map
+	const char* Name();
+	
+	// Size of an existing map
+	int Size();
 
 	// Print map information for debugging
 	void Debug();

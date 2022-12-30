@@ -12,17 +12,17 @@ The Master branch contains a version of SpoutCam based on DirectX. The project r
 
 The OpenGL branch contains the original version of SpoutCam based on OpenGL. The OpenGL version may not be updated after 2.007 release.
 
-### Output folder
+### Binaries folder
 
-Binaries for both release and debug compile, are copied as either SpoutCam32.ax or SpoutCam64.ax to the "release" folder.
+Binaries for both release and debug compile, are copied as either SpoutCam32.ax or SpoutCam64.ax to the "release" folder and also to a "binaries\SPOUTCAM" folder which contains separate folders to 32bit (SpoutCam32) and 64bit (SpoutCam64) builds
+
+### SpoutCam options
+
+"SpoutCamSettings.exe" has also been copied to the "binaries\SPOUTCAM" folder and can be used to set options for SpoutCam. Documentation for the functions can be found in the program itself using the |?| buttons.
 
 ### Register SpoutCam.
 
-SpoutCam 32 bit is registered if Spout 2.006 is installed. If you build using this repository. The "release" folder has batch files which can be used to register or unregister different versions of SpoutCam. 
-
-Please also refer to the 2.007 version of [SpoutCamSettings](https://github.com/leadedge/Spout2/tree/beta/SPOUTCAM) which allows resolution and frame rate to be changed.
-
-The program can also register SpoutCam and binaries are included in the repository. To register different ones, copy your binary files to the SpoutCam32 or SpoutCam64 folders before running SpoutCamSettings.
+"SpoutCamSettings" can also be used to register SpoutCam. Registration can also be done manually. The "SpoutCam32" and "SpoutCam64" folders contain batch files for this purpose. Refer to the readme.txt file in the "binaries\SPOUTCAM" folder. 
 
 ### Credit
 

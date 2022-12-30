@@ -12,12 +12,12 @@
 	after the filter has been loaded. If there is no Sender, 
 	the default is 640x480 with a noise image
 
-	Copyright 2013-2020 Lynn Jarvis - spout@zeal.co
+	Copyright 2013-2023 Lynn Jarvis - spout@zeal.co
 
 	"SpoutCam" is free software: 
 	you can redistribute it and/or modify it under the terms of the GNU
 	Lesser General Public License as published by the Free Software Foundation, 
-	either version 3 of the Licensfilbe, or (at your option) any later version.
+	either version 3 of the License file, or (at your option) any later version.
 
 	Credit for original capture source filter authored by Vivek :
 
@@ -275,6 +275,18 @@
 			   Only for properties dialog - see OnReceiveMessage
 			   Change version.h for unicode wide strings
 			   Version 2.024
+	14.11.21   Updated SpoutDX files
+			   Changed CleanupDX11 to CloseDirectX11
+	11.03.22   Update SpoutDX files.
+			   Add starting sender and revise SpoutCamSettings to enable.
+			   Update properties dialog for starting sender.
+			   Create "binaries\SPOUTCAM\" folder for GitHub release.
+			   Version 2.025
+	20.11.22   Rebuild VS2022 /MT with updated SpoutDX.
+	30.12.22   Update SpoutDX files.
+			   Rebuild x86/x64 VS2022 /MT with updated SpoutDX.
+			   Update Version.h copyright and year to 2023
+			   Version 2.026
 
 */
 
@@ -302,10 +314,11 @@ CUnknown * WINAPI CVCam::CreateInstance(LPUNKNOWN lpunk, HRESULT *phr)
 {
     ASSERT(phr);
 
-	// debug console window
+	// Console window
+	// LJ DEBUG
 	// OpenSpoutConsole(); // Empty console
 	// EnableSpoutLog(); // Show error logs
-	// printf("SpoutCamDX ~~ Vers 2.024\n");
+	// printf("SpoutCamDX ~ Vers 2.026\n");
 
 	// For clear options dialog for scaled display
 	SetProcessDPIAware();
@@ -387,9 +400,9 @@ STDMETHODIMP CVCam::GetPages(CAUUID *pPages)
 	return S_OK;
 }
 
-STDMETHODIMP CVCam::put_Settings(DWORD dwFps, DWORD dwResolution, DWORD dwMirror, DWORD dwSwap, DWORD dwFlip)
+STDMETHODIMP CVCam::put_Settings(DWORD dwFps, DWORD dwResolution, DWORD dwMirror, DWORD dwSwap, DWORD dwFlip, const char *name)
 {
-	((CVCamStream *)m_paStreams[0])->put_Settings(dwFps, dwResolution, dwMirror, dwSwap, dwFlip);
+	((CVCamStream *)m_paStreams[0])->put_Settings(dwFps, dwResolution, dwMirror, dwSwap, dwFlip, name);
 	return S_OK;
 }
 
@@ -498,7 +511,7 @@ HRESULT STDMETHODCALLTYPE CVCam::Unregister( void)
 //////////////////////////////////////////////////////////////////////////
 
 //<==================== VS-START ====================>
-HRESULT CVCamStream::put_Settings(DWORD dwFps, DWORD dwResolution, DWORD dwMirror, DWORD dwSwap, DWORD dwFlip)
+HRESULT CVCamStream::put_Settings(DWORD dwFps, DWORD dwResolution, DWORD dwMirror, DWORD dwSwap, DWORD dwFlip, const char *name)
 {
 	// Calling Disconnect() would disconnect SpoutCam with a connected filter (e.g. Color Space Converter) in GraphStudioNext, 
 	// but something is still missing, you can't reconnect the existing filters with the new cam settings.
@@ -506,10 +519,17 @@ HRESULT CVCamStream::put_Settings(DWORD dwFps, DWORD dwResolution, DWORD dwMirro
 	// were changed by its Properties dialog, then rendering SpoutCam's output pin works fine and all filters are successfully reconnected,
 	// taking into account the new fps/resolution settings.
 
+	// Fps and resolution
 	SetFps(dwFps);
 	SetResolution(dwResolution);
+
+	// The starting sender name
+	receiver.SetReceiverName(name);
+
+	// Mirror and swap
 	receiver.m_bMirror = (dwMirror > 0);
 	receiver.m_bSwapRB = (dwSwap > 0);
+
 	// Flip is true by default - so false will appear inverted
 	bInvert = !(dwFlip > 0);
 
@@ -532,7 +552,8 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 	g_Height		= 480;
 	g_SenderName[0] = 0;
 	g_ActiveSender[0] = 0;
-	
+	g_SenderStart[0] = 0;
+
 	// Maximum precision of timeGetTime used in FillBuffer
 	timeGetDevCaps(&g_caps, sizeof(g_caps));
 	timeBeginPeriod(g_caps.wPeriodMin);
@@ -595,25 +616,28 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 	DWORD dwFlip = 0;
 	ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "flip", &dwFlip);
 
+	//
+	// Lock to a specific sender
+	//
+	// SpoutCam will only connect to the name specified.
+	// Any other sender is ignored and SpoutCam will produce static until it opens.
+	// SpoutCam can be started before or after the sender.
+	// See SpoutCamSettings to specify the starting sender name.
+	// A starting name flags waiting for the nominated sender.
+	//
+	g_SenderStart[0] = 0;
+	ReadPathFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "senderstart", g_SenderStart);
+
 	//<==================== VS-START ====================>
 	// Now always the new function put_Settings is called, which in turn calls
 	// SetFps and SetResolution. Dealing with resolution 0 (Sender) was moved to
 	// SetResolution.
-	put_Settings(dwFps, dwResolution, dwMirror, dwSwap, dwFlip);
+	put_Settings(dwFps, dwResolution, dwMirror, dwSwap, dwFlip, g_SenderStart);
 	//<==================== VS-END ======================>
 
 	NumDroppedFrames = 0LL;
 	NumFrames = 0LL;
 
-	//
-	// Special purpose option : Lock to a specific sender
-	//
-	// SpoutCam will only connect to the name specied.
-	// Any other sender is ignored and SpoutCam will produce static.
-	// SpoutCam can be started before or after the sender.
-	// Leave this out for SpoutCam to detect to any sender.
-	//
-	// receiver.SetReceiverName("Spout DX11 Sender"); // Specify the sender name here
 
 }
 
@@ -731,7 +755,7 @@ CVCamStream::~CVCamStream()
 		receiver.ReleaseReceiver();
 
 	if (bDXinitialized)
-		receiver.CleanupDX11();
+		receiver.CloseDirectX11();
 
 	// End timer precision
 	timeEndPeriod(g_caps.wPeriodMin);
@@ -780,8 +804,10 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 	}
 
 	// Memory share mode not supported by DirectX
-	if (bMemoryMode)
-		return FALSE;
+	if (bMemoryMode) {
+		// printf("SpoutCam - bMamoryMode detected\n");
+		return S_FALSE;
+	}
 	
 	//
 	// Timing - modified from Red5 method
@@ -868,26 +894,34 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 		goto ShowStatic;
 	}
 
-	// Quit if nothing running at all
-	if(!receiver.GetActiveSender(g_ActiveSender)) {
-		ReleaseCamReceiver();
-		goto ShowStatic;
-	}
-
 	// Initialize DirectX if is has not been done
-	// TODO : prevent retries
-	if(!bDXinitialized) {
+	// TODO : prevent retries on failure
+	if (!bDXinitialized) {
 		if (!receiver.OpenDirectX11()) {
 			return NOERROR;
 		}
 		bDXinitialized = true;
 	} // endif !bDXinitialized
 	
+	// Is anything running at all ?
+	if (!receiver.GetActiveSender(g_ActiveSender)) {
+		// Quit now if a starting sender has started but
+		// has now closed. Wait for it to open again.
+		// The last frame is frozen instead of showing static.
+		if (bInitialized && g_SenderStart[0]) {
+			return NOERROR;
+		}
+		// Otherwise release and show static
+		ReleaseCamReceiver();
+		goto ShowStatic;
+	}
+
+
 	// DirectX is initialized OK
 	// Get bgr pixels from the sender bgra shared texture
 	// ReceiveImage handles sender detection, connection and copy of pixels
 	if (receiver.ReceiveImage(pData, g_Width, g_Height, true, bInvert)) {
-		// rgb(not rgba) = true, invert = true
+		// rgb(not rgba) = true, invert = flip user setting
 		// If IsUpdated() returns true, the sender has changed
 		if (receiver.IsUpdated()) {
 			if (strcmp(g_SenderName, receiver.GetSenderName()) != 0) {
@@ -904,6 +938,11 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 		return NOERROR;
 	}
 	else {
+		// Return if waiting for a starting sender that has closed.
+		if (bInitialized && g_SenderStart[0]) {
+			return NOERROR;
+		}
+		// Release the receiver 
 		ReleaseCamReceiver();
 	}
 
@@ -913,7 +952,7 @@ ShowStatic :
 	pms->GetPointer(&pData);
 	lDataLen = pms->GetSize();
 	for (l = 0; l < lDataLen; ++l)
-		pData[l] = (char)xorshiftRand(); // rand();
+		pData[l] = (char)xorshiftRand(); // fast rand();
 
 	NumFrames++;
 

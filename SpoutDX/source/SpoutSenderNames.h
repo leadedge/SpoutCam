@@ -9,7 +9,7 @@
 	https://github.com/mbechard	
 
 	- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-	Copyright (c) 2014-2020, Lynn Jarvis. All rights reserved.
+	Copyright (c) 2014-2023, Lynn Jarvis. All rights reserved.
 
 	Redistribution and use in source and binary forms, with or without modification, 
 	are permitted provided that the following conditions are met:
@@ -46,11 +46,10 @@
 #include <vector>
 #include <unordered_map>
 #include <intrin.h> // for __movsd
+#include <stdint.h> // for _uint32
 
 #include "SpoutCommon.h"
 #include "SpoutSharedMemory.h"
-
-using namespace spoututils;
 
 // 100 msec wait for events
 #define SPOUT_WAIT_TIMEOUT 100
@@ -58,27 +57,33 @@ using namespace spoututils;
 // MaxSenders define replaced by a global class variable (Maximum for list of Sender names)
 #define SpoutMaxSenderNameLen 256
 
+
 // The texture information structure that is saved to shared memory
 // and used for communication between senders and receivers
-// unsigned __int32 is used for compatibility between 32bit and 64bit
-// See : http://msdn.microsoft.com/en-us/library/windows/desktop/aa384203%28v=vs.85%29.aspx
-// This is also compatible with wyphon : 
+// uint32_t is used for compatibility between 32bit and 64bit
 // The structure is declared here so that this class is can be independent of opengl
 //
-// 03.07-16 - Use helper functions for conversion of 64bit HANDLE to unsigned __int32
-// and unsigned __int32 to 64bit HANDLE
+// Use helper functions for conversion between HANDLE and uint32_t
 // https://msdn.microsoft.com/en-us/library/aa384267%28VS.85%29.aspx
 // in SpoutGLDXinterop.cpp and SpoutSenderNames
 //
-struct SharedTextureInfo {
-	unsigned __int32 shareHandle; // texture handle
-	unsigned __int32 width; // texture width
-	unsigned __int32 height; // texture height
-	DWORD format; // texture pixel format
-	DWORD usage; // not used
-	wchar_t description[128]; // Wyhon compatible description (not used)
-	unsigned __int32 partnerId; // Wyphon id of partner that shared it with us (not used)
+struct SharedTextureInfo {		// 280 bytes total
+	uint32_t shareHandle;		// 4 bytes : texture handle
+	uint32_t width;				// 4 bytes : texture width
+	uint32_t height;			// 4 bytes : texture height
+	uint32_t format;			// 4 bytes : texture pixel format
+	uint32_t usage;				// 4 bytes : texture usage
+	uint8_t  description[256];	// 256 bytes : description
+	uint32_t partnerId;			// 4 bytes : ID
 };
+
+//
+// GUIDs for additional sender information maps
+// Used for development work
+
+// Example 
+// {AB5C33D6-3654-43F9-85F6-F54872B0460B}
+static const char* GUID_queue = "AB5C33D6-3654-43F9-85F6-F54872B0460B";
 
 
 class SPOUT_DLLEXP spoutSenderNames {
@@ -98,7 +103,7 @@ class SPOUT_DLLEXP spoutSenderNames {
 
 		// Register a sender name in the list of senders
 		bool RegisterSenderName(const char* sendername);
-		// Remove a name fromn the list
+		// Remove a name from the list
 		bool ReleaseSenderName(const char* sendername);
 		// Find a name in the list
 		bool FindSenderName(const char* sendername);
@@ -111,8 +116,11 @@ class SPOUT_DLLEXP spoutSenderNames {
 		bool GetSenderNames(std::set<std::string> *sendernames);
 		// Number of senders in the list
 		int  GetSenderCount();
+		// Sender item name
+		bool GetSender(int index, char* sendername, int MaxSize = 256);
 		// Information about a sender from an index into the list
 		bool GetSenderNameInfo(int index, char* sendername, int sendernameMaxSize, unsigned int &width, unsigned int &height, HANDLE &dxShareHandle);
+
 
 		//
 		// Maximum number of senders allowed in the list
@@ -132,10 +140,12 @@ class SPOUT_DLLEXP spoutSenderNames {
 		bool GetSenderInfo (const char* sendername, unsigned int &width, unsigned int &height, HANDLE &dxShareHandle, DWORD &dwFormat);
 		// Set sender information
 		bool SetSenderInfo (const char* sendername, unsigned int width, unsigned int height, HANDLE dxShareHandle, DWORD dwFormat);
+		// Set sender PartnerID field with "CPU" sharing method and GL/DX compatibility
+		bool SetSenderID(const char *sendername, bool bCPU, bool bGLDX);
 		// Generic sender map info read (returned in a shared texture information structure)
 		bool getSharedInfo (const char* sendername, SharedTextureInfo* info);
 		// Generic sender map info write
-		bool setSharedInfo (const char* sendername, SharedTextureInfo* info);
+		bool setSharedInfo (const char* sendername, const SharedTextureInfo* info);
 		// Test for shared info memory map existence
 		bool hasSharedInfo(const char* sendername);
 
@@ -165,9 +175,10 @@ class SPOUT_DLLEXP spoutSenderNames {
 		bool CheckSender  (const char* sendername, unsigned int &width, unsigned int &height, HANDLE &hSharehandle, DWORD &dwFormat);
 		// Find a sender and return details
 		bool FindSender   (char* sendername, unsigned int &width, unsigned int &height, HANDLE &hSharehandle, DWORD &dwFormat);
-		
-		// Debuging function
-		bool SenderDebug (const char* sendername, int size);
+		// Find a sender in the class names set
+		bool FindSender   (const char* sendername);
+		// Release orphaned senders
+		void CleanSenders();
 
 protected:
 
@@ -187,15 +198,15 @@ protected:
 		static void readSenderSetFromBuffer(const char* buffer, std::set<std::string>& SenderNames, int maxSenders);
 		static void	writeBufferFromSenderSet(const std::set<std::string>& SenderNames, char *buffer, int maxSenders);
 
-		SpoutSharedMemory	m_senderNames;
-		SpoutSharedMemory	m_activeSender;
+		SpoutSharedMemory m_senderNames;
+		SpoutSharedMemory m_activeSender;
 
 		// This should be a unordered_map of sender names ->SharedMemory
 		// to handle multiple inputs and outputs all going through the
 		// same spoutSenderNames class
 		// Make this a pointer to avoid size differences between compilers
 		// if the .dll is compiled with something different
-		std::unordered_map<std::string, SpoutSharedMemory*>*	m_senders;
+		std::unordered_map<std::string, SpoutSharedMemory*>* m_senders;
 		int m_MaxSenders; // maximum number of senders via registry
 
 };

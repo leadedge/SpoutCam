@@ -4,7 +4,7 @@
 
 			Sender and receiver for DirectX applications
 
-	Copyright (c) 2014-2020, Lynn Jarvis. All rights reserved.
+	Copyright (c) 2014-2023 Lynn Jarvis. All rights reserved.
 
 	Redistribution and use in source and binary forms, with or without modification, 
 	are permitted provided that the following conditions are met:
@@ -33,7 +33,7 @@
 #define __spoutDX__
 
 // Change the path as required
-#include "SpoutCommon.h" // for dll build and utilities
+#include "SpoutCommon.h" // for dll build
 #include "SpoutSenderNames.h" // for sender creation and update
 #include "SpoutDirectX.h" // for creating DX11 textures
 #include "SpoutFrameCount.h" // for mutex lock and new frame signal
@@ -43,7 +43,6 @@
 #include <direct.h> // for _getcwd
 #include <TlHelp32.h> // for PROCESSENTRY32
 #include <tchar.h> // for _tcsicmp
-
 
 class SPOUT_DLLEXP spoutDX {
 
@@ -55,23 +54,33 @@ class SPOUT_DLLEXP spoutDX {
 	//
 	// DIRECTX
 	//
+
 	bool OpenDirectX11(ID3D11Device* pDevice = nullptr);
-	ID3D11Device* GetDevice();
-	void CleanupDX11();
+	ID3D11Device* GetDX11Device();
+	ID3D11DeviceContext* GetDX11Context();
+	void CloseDirectX11();
+	bool IsClassDevice();
 
 	//
 	// SENDER
 	//
+
 	// Set the sender name
 	bool SetSenderName(const char* sendername = nullptr);
 	// Set the sender texture format
 	void SetSenderFormat(DXGI_FORMAT format);
 	// Close sender and free resources
 	void ReleaseSender();
+	// Send the back buffer
+	bool SendBackBuffer();
 	// Send a texture
 	bool SendTexture(ID3D11Texture2D* pTexture);
+	// Send part of a texture
+	bool SendTexture(ID3D11Texture2D* pTexture,
+		unsigned int xoffset, unsigned int yoffset,
+		unsigned int width, unsigned int height); 
 	// Send an image
-	bool SendImage(unsigned char * pData, unsigned int width, unsigned int height);
+	bool SendImage(const unsigned char * pData, unsigned int width, unsigned int height);
 	// Sender status
 	bool IsInitialized();
 	// Sender name
@@ -88,12 +97,15 @@ class SPOUT_DLLEXP spoutDX {
 	//
 	// RECEIVER
 	//
+
 	// Set the sender to connect to
-	void SetReceiverName(const char * sendername);
+	void SetReceiverName(const char * sendername = nullptr);
 	// Close receiver and free resources
 	void ReleaseReceiver();
+	// Receive from a sender
+	bool ReceiveTexture();
 	// Receive a texture from a sender
-	bool ReceiveTexture(ID3D11Texture2D** ppTexture = nullptr);
+	bool ReceiveTexture(ID3D11Texture2D** ppTexture);
 	// Receive an image
 	bool ReceiveImage(unsigned char * pixels, unsigned int width, unsigned int height, bool bRGB = false, bool bInvert = false);
 	// Open sender selection dialog
@@ -104,6 +116,8 @@ class SPOUT_DLLEXP spoutDX {
 	bool IsConnected();
 	// Received frame is new
 	bool IsFrameNew();
+	// Received texture
+	ID3D11Texture2D* GetSenderTexture();
 	// Received sender share handle
 	HANDLE GetSenderHandle();
 	// Received sender texture format
@@ -122,48 +136,149 @@ class SPOUT_DLLEXP spoutDX {
 	//
 	// COMMON
 	//
-	void HoldFps(int fps); // Hold frame rate
-	void DisableFrameCount(); // Disable frame counting for this application
-	bool IsFrameCountEnabled(); // Return frame count status
+
+	// Frame rate control
+	void HoldFps(int fps);
+	// Disable frame counting for this application
+	void DisableFrameCount();
+	// Return frame count status
+	bool IsFrameCountEnabled();
+	// Signal sync event 
+	void SetFrameSync(const char* SenderName);
+	// Wait or test for a sync event
+	bool WaitFrameSync(const char *SenderName, DWORD dwTimeout = 0);
+
 								
+	//
 	// Sender names
+	//
+
+	// Get number of senders
 	int  GetSenderCount();
+	// Get sender name for a given index
 	bool GetSender(int index, char* sendername, int MaxSize = 256);
+	// Get sender details
 	bool GetSenderInfo(const char* sendername, unsigned int &width, unsigned int &height, HANDLE &dxShareHandle, DWORD &dwFormat);
+	// Get active sender name
 	bool GetActiveSender(char* sendername);
+	// set active sender name
 	bool SetActiveSender(const char* sendername);
-	int  GetMaxSenders(); // Get maximum senders allowed
-	void SetMaxSenders(int maxSenders); // Set maximum senders allowed
+	// Get maximum senders allowed
+	int  GetMaxSenders();
+	// Set maximum senders allowed
+	void SetMaxSenders(int maxSenders);
 
+	//
 	// Adapter functions
-	int  GetNumAdapters(); // Get the number of graphics adapters in the system
-	bool GetAdapterName(int index, char *adaptername, int maxchars); // Get an adapter name
-	int  GetAdapter(); // Get the current adapter index
-	bool SetAdapter(int index = 0); // Set required graphics adapter for output
+	//
 
-	// Sharing modes not supported
+	// Get the number of graphics adapters in the system
+	int GetNumAdapters();
+	// Get the adapter name for a given index
+	bool GetAdapterName(int index, char *adaptername, int maxchars);
+	// Get the current adapter description
+	bool GetAdapterInfo(char *renderdescription, char *displaydescription, int maxchars);
+	// Get the current adapter index
+	int  GetAdapter();
+	// Set required graphics adapter for output (no args or -1 to reset)
+	bool SetAdapter(int index = -1);
+	// Get adapter pointer for a given adapter (-1 means current)
+	IDXGIAdapter* GetAdapterPointer(int index = -1);
+	// Set required graphics adapter for creating a device
+	void SetAdapterPointer(IDXGIAdapter* pAdapter);
+	// Get auto device switching status
+	bool GetAdapterAuto();
+	// Auto switch receiving device to use the same graphics adapter as the sender
+	void SetAdapterAuto(bool bAuto = true);
+	// Get sender adapter index and name for a given sender
+	int GetSenderAdapter(const char* sendername, char* adaptername = nullptr, int maxchars = 256);
+
+	//
+	// Graphics preference
+	//
+// Windows 10 Vers 1803, build 17134 or later
+#ifdef NTDDI_WIN10_RS4
+
+	// Get the Windows graphics preference for an application
+	//     -1 - No preference
+	//      0 - Default
+	//      1 - Power saving
+	//      2 - High performance
+	// If no path is specified, use the current application path
+	int GetPerformancePreference(const char* path = nullptr);
+	// Set the Windows graphics preference for an application
+	//     -1 - No preference
+	//      0 - Default
+	//      1 - Power saving
+	//      2 - High performance
+	// If no path is specified, use the current application path
+	bool SetPerformancePreference(int preference, const char* path = nullptr);
+	// Get the graphics adapter name for a Windows preference
+	bool GetPreferredAdapterName(int preference, char* adaptername, int maxchars);
+	// Set graphics adapter index for a Windows preference
+	bool SetPreferredAdapter(int preference);
+	// Windows graphics preference availability
+	bool IsPreferenceAvailable();
+	// Is the path a valid application
+	bool IsApplicationPath(const char* path);
+#endif
+
+	//
+	// Sharing modes (2.006 compatibility)
+	//
+
+	// Get user selected DX9 mode (2.006)
 	bool GetDX9();
 	bool GetMemoryShareMode();
 
+	//
 	// Utility
+	//
+
+	void CheckSenderFormat(const char * sendername);
 	bool CreateDX11texture(ID3D11Device* pd3dDevice,
 		unsigned int width, unsigned int height,
 		DXGI_FORMAT format, ID3D11Texture2D** ppTexture);
+	
+	//
+	// Data sharing
+	//
 
-	spoutSenderNames spoutsender;
+	// Write data to shared memory
+	bool WriteMemoryBuffer(const char *name, const char* data, int length);
+	// Read data from shared memory
+	int  ReadMemoryBuffer(const char* name, char* data, int maxlength);
+	// Create a shared memory buffer
+	bool CreateMemoryBuffer(const char *name, int length);
+	// Delete a shared memory buffer
+	bool DeleteMemoryBuffer();
+	// Get the number of bytes available for data transfer
+	int  GetMemoryBufferSize(const char *name);
+
+	//
+	// Public for external access
+	//
+
+	spoutSenderNames sendernames;
 	spoutFrameCount frame;
 	spoutDirectX spoutdx;
 	spoutCopy spoutcopy;
 
+	//
 	// Options used for SpoutCam
-	bool m_bMirror; // Mirror image
-	bool m_bSwapRB; // RGB <> BGR
+	//
+
+	// Mirror image
+	bool m_bMirror;
+	// RGB <> BGR
+	bool m_bSwapRB;
 
 protected :
 
 	ID3D11Device* m_pd3dDevice;
 	ID3D11DeviceContext* m_pImmediateContext;
 	ID3D11Texture2D* m_pSharedTexture;
+	ID3D11Texture2D* m_pTexture;
 	ID3D11Texture2D* m_pStaging[2];
 	int m_Index;
 	int m_NextIndex;
@@ -177,25 +292,36 @@ protected :
 	unsigned int m_Height;
 	bool m_bUpdated;
 	bool m_bConnected;
-	bool m_bNewFrame;
 	bool m_bSpoutInitialized;
 	bool m_bSpoutPanelOpened;
 	bool m_bSpoutPanelActive;
 	bool m_bClassDevice;
+	bool m_bAdapt;
+	bool m_bMemoryShare; // Using 2.006 memoryshare methods
 	SHELLEXECUTEINFOA m_ShExecInfo;
+
+	// For WriteMemoryBuffer/ReadMemoryBuffer
+	SpoutSharedMemory memorybuffer;
+
+	bool CheckSender(unsigned int width, unsigned int height, DWORD dwFormat);
+	ID3D11Texture2D* CheckSenderTexture(char *sendername, HANDLE dxShareHandle);
 
 	bool ReceiveSenderData();
 	void CreateReceiver(const char * sendername, unsigned int width, unsigned int height, DWORD dwFormat);
 	
-	// Read pixels via staging texture
-	bool ReadPixels(unsigned char* pixels, unsigned int width, unsigned int height, bool bRGB, bool bInvert);
-	bool ReadPixelData(ID3D11Texture2D* pStagingTexture, unsigned char* pixels, unsigned int width, unsigned int height, bool bRGB, bool bInvert);
+	// Read pixels from a staging texture
+	bool ReadPixelData(ID3D11Texture2D* pStagingSource, unsigned char* destpixels,
+		unsigned int width, unsigned int height, bool bRGB, bool bInvert, bool bSwap);
+	
+	// Create staging textures
 	bool CheckStagingTextures(unsigned int width, unsigned int height, DWORD dwFormat = DXGI_FORMAT_B8G8R8A8_UNORM);
 	bool CreateDX11StagingTexture(unsigned int width, unsigned int height, DXGI_FORMAT format, ID3D11Texture2D** pStagingTexture);
 
+	// Create or update class texture
+	bool CheckTexture(unsigned int width, unsigned int height, DWORD dwFormat);
+
 	void SelectSenderPanel();
 	bool CheckSpoutPanel(char *sendername, int maxchars = 256);
-
 
 };
 

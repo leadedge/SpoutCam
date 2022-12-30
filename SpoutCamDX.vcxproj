@@ -140,9 +140,9 @@
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
     </Link>
     <PostBuildEvent>
-      <Command>copy /y $(TargetPath) release\win32\SpoutCam32.ax
+      <Command>copy /y $(TargetPath) "Win32\Release\SpoutCam32.ax"
 
-
+copy /y $(TargetPath) "binaries\SPOUTCAM\SpoutCam32\SpoutCam32.ax"
 </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
@@ -166,7 +166,8 @@
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
     </Link>
     <PostBuildEvent>
-      <Command>copy /y $(TargetPath) release\x64\SpoutCam64.ax
+      <Command>copy /y $(TargetPath) "x64\Release\SpoutCam64.ax"
+copy /y $(TargetPath) "binaries\SPOUTCAM\SpoutCam64\SpoutCam64.ax"
 </Command>
     </PostBuildEvent>
     <Manifest>
