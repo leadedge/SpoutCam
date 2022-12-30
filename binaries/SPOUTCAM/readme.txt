@@ -21,13 +21,14 @@ The resolution of SpoutCam depends on :
 
 3) If no sender is running when SpoutCam starts and "Active sender" has been selected, the resolution is undefined, so the default 640x480 is used.
 
+Some host programs don't accept arbitrary resolutions. If you have trouble, select a fixed resolution so that SpoutCam behaves more like a typical webcam.
 
 The final appearance depends on how the frames are fitted to the aspect ratio of the host webcam display window. They could be fitted to the width, height or stretched to fit, depending on the host.
 
 
 FRAME RATE
 
-You can use 60fps if it is accepted by the host program and if the CPU performance is sufficient for the processing required. Use 30fps for best compatibility with webcams. The frame rate selected is the ï¿½desiredï¿½ frame rate.  SpoutCam will attempt to meet that frame rate and drop frames if it cannot keep up.
+You can use 60fps if it is accepted by the host program and if the CPU performance is sufficient for the processing required. Use 30fps for best compatibility with webcams. The frame rate selected is the “desired” frame rate.  SpoutCam will attempt to meet that frame rate and drop frames if it cannot keep up.
 
 STARTING SENDER
 
