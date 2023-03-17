@@ -287,6 +287,11 @@
 			   Rebuild x86/x64 VS2022 /MT with updated SpoutDX.
 			   Update Version.h copyright and year to 2023
 			   Version 2.026
+	17.03.23   SpoutDX ReceiveSenderData.
+			   Allow for applications that do not fill the sender information format field.
+			   If no format is specified use a valid D3D11 texture format.
+			   Version 2.027
+
 
 */
 
@@ -315,10 +320,9 @@ CUnknown * WINAPI CVCam::CreateInstance(LPUNKNOWN lpunk, HRESULT *phr)
     ASSERT(phr);
 
 	// Console window
-	// LJ DEBUG
 	// OpenSpoutConsole(); // Empty console
 	// EnableSpoutLog(); // Show error logs
-	// printf("SpoutCamDX ~ Vers 2.026\n");
+	// printf("SpoutCamDX ~ Vers 2.027\n");
 
 	// For clear options dialog for scaled display
 	SetProcessDPIAware();
