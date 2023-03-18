@@ -60,6 +60,8 @@ class SPOUT_DLLEXP spoutDX {
 	ID3D11DeviceContext* GetDX11Context();
 	void CloseDirectX11();
 	bool IsClassDevice();
+	void SetKeyed(bool bKeyed = true);
+	bool GetKeyed();
 
 	//
 	// SENDER
@@ -83,6 +85,15 @@ class SPOUT_DLLEXP spoutDX {
 	bool SendImage(const unsigned char * pData, unsigned int width, unsigned int height);
 	// Sender status
 	bool IsInitialized();
+
+	// LJ DEBUG
+	// Shared texture
+	ID3D11Texture2D* GetTexture();
+	// Shared texture handle
+	HANDLE GetHandle();
+	// Shared texture format
+	DXGI_FORMAT GetFormat();
+
 	// Sender name
 	const char * GetName();
 	// Get width
@@ -239,7 +250,16 @@ class SPOUT_DLLEXP spoutDX {
 	bool CreateDX11texture(ID3D11Device* pd3dDevice,
 		unsigned int width, unsigned int height,
 		DXGI_FORMAT format, ID3D11Texture2D** ppTexture);
-	
+
+	//
+	// SpoutUtils namespace functions for dll access
+	void OpenSpoutConsole();
+	void CloseSpoutConsole(bool bWarning = false);
+	void EnableSpoutLog();
+	void EnableSpoutLogFile(const char* filename, bool append = false);
+	void DisableSpoutLogFile();
+	void DisableSpoutLog();
+
 	//
 	// Data sharing
 	//
@@ -298,7 +318,8 @@ protected :
 	bool m_bClassDevice;
 	bool m_bAdapt;
 	bool m_bMemoryShare; // Using 2.006 memoryshare methods
-	SHELLEXECUTEINFOA m_ShExecInfo;
+	bool m_bKeyed; // Keyed shared texture
+	SHELLEXECUTEINFOA m_ShExecInfo; // For ShellExecute
 
 	// For WriteMemoryBuffer/ReadMemoryBuffer
 	SpoutSharedMemory memorybuffer;

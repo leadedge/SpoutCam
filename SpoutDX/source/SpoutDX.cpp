@@ -117,8 +117,12 @@
 //					  GetPreferredAdapterName, SetPreferredAdapter
 //		08.11.22	- Add IsPreferenceAvailable, IsApplicationPath
 //		16.11.22	- HoldFps double fps argument instead of int
-//		26/12/22	- Initialize all arrays and structures
+//		26.12.22	- Initialize all arrays and structures
 //					  Const arg for SendImage
+//		08.01.23	- Add SpoutUtils functions
+//		23.01.23	- CheckSender - Flush after shared texture release
+//		17.03.23	- ReceiveSenderData - if there is a valid D3D11 format, use it.
+//		18.03.23	- CreateDX11StagingTexture - use default DX11 format for zero or DX9 formats
 //
 // ====================================================================================
 /*
@@ -267,12 +271,9 @@ void spoutDX::CloseDirectX11()
 {
 	SpoutLogNotice("spoutDX::CloseDirectX11()");
 
-	if (m_pSharedTexture) m_pSharedTexture->Release();
-	m_pSharedTexture = nullptr;
-	m_dxShareHandle = nullptr;
-
-	if (m_pTexture) m_pTexture->Release();
+	if (m_pTexture)	spoutdx.ReleaseDX11Texture(m_pTexture);
 	m_pTexture = nullptr;
+	m_dxShareHandle = nullptr;
 
 	if (m_pStaging[0]) m_pStaging[0]->Release();
 	if (m_pStaging[1]) m_pStaging[1]->Release();
@@ -304,6 +305,21 @@ void spoutDX::CloseDirectX11()
 bool spoutDX::IsClassDevice()
 {
 	return m_bClassDevice;
+}
+
+// Function: SetKeyed
+// Sender : create a shared texture with a keyed mutex
+// Used for testing
+void spoutDX::SetKeyed(bool bKeyed)
+{
+	m_bKeyed = bKeyed;
+}
+
+// Function: GetKeyed
+// Get flag to create a shared texture with a keyed mutex
+bool spoutDX::GetKeyed()
+{
+	return m_bKeyed;
 }
 
 //---------------------------------------------------------
@@ -377,12 +393,11 @@ void spoutDX::ReleaseSender()
 {
 	if (m_pSharedTexture)
 		m_pSharedTexture->Release();
+	m_pSharedTexture = nullptr;
+	m_dxShareHandle = nullptr;
 
 	if (m_bSpoutInitialized)
 		sendernames.ReleaseSenderName(m_SenderName);
-
-	m_pSharedTexture = nullptr;
-	m_dxShareHandle = nullptr;
 
 	m_Width = 0;
 	m_Height = 0;
@@ -573,6 +588,37 @@ bool spoutDX::IsInitialized()
 {
 	return m_bSpoutInitialized;
 }
+
+
+
+// LJ DEBUG
+//---------------------------------------------------------
+// Function: GetTexture()
+// Class shared texture
+//
+ID3D11Texture2D* spoutDX::GetTexture()
+{
+	return m_pSharedTexture;
+}
+
+//---------------------------------------------------------
+// Function: GetHandle
+// Class shared texture handle
+HANDLE spoutDX::GetHandle()
+{
+	return m_dxShareHandle;
+}
+
+//---------------------------------------------------------
+// Function: GetFormat
+// Class shared texture format
+DXGI_FORMAT spoutDX::GetFormat()
+{
+	return (DXGI_FORMAT)m_dwFormat;
+}
+
+
+
 
 //---------------------------------------------------------
 // Function: GetName
@@ -852,6 +898,7 @@ bool spoutDX::ReceiveImage(unsigned char * pixels,
 
 	// Try to receive texture details from a sender
 	if (ReceiveSenderData()) {
+
 		// The sender name, width, height, format, shared texture handle and pointer have been retrieved.
 		if (m_bUpdated) {
 			// A new sender has been found or the one connected has changed.
@@ -1820,7 +1867,7 @@ bool spoutDX::CreateDX11texture(ID3D11Device* pd3dDevice,
 //---------------------------------------------------------
 // Function: CheckSenderFormat
 // Find sender shared memory.
-// If format is zero, try to pen the sharehandle
+// If format is zero, try to open the sharehandle
 // and write the correct format back to shared memory
 // Also register the sender name if not already
 void spoutDX::CheckSenderFormat(const char * sendername)
@@ -1834,9 +1881,10 @@ void spoutDX::CheckSenderFormat(const char * sendername)
 			ID3D11Texture2D* pSharedTexture = nullptr;
 			pDummyDevice = spoutdx.CreateDX11device();
 			if (pDummyDevice) {
+
 				// Try to open the share handle
 				// If it's DirectX9, the handle will not open
-				if (spoutdx.OpenDX11shareHandle(pDummyDevice, &pSharedTexture, LongToHandle((LONG)info.shareHandle) )) {
+				if (spoutdx.OpenDX11shareHandle(pDummyDevice, &pSharedTexture, LongToHandle((LONG)info.shareHandle))) {
 					if (pSharedTexture) {
 						// Get the texture details
 						D3D11_TEXTURE2D_DESC desc;
@@ -1859,6 +1907,41 @@ void spoutDX::CheckSenderFormat(const char * sendername)
 			sendernames.SetActiveSender(sendername);
 	}
 }
+
+//
+// SpoutUtils namespace functions for dll access
+//
+
+void spoutDX::OpenSpoutConsole()
+{
+	spoututils::OpenSpoutConsole();
+}
+
+void spoutDX::CloseSpoutConsole(bool bWarning)
+{
+	spoututils::CloseSpoutConsole(bWarning);
+}
+
+void spoutDX::EnableSpoutLog()
+{
+	spoututils::EnableSpoutLog();
+}
+
+void spoutDX::EnableSpoutLogFile(const char* filename, bool append)
+{
+	spoututils::EnableSpoutLogFile(filename, append);
+}
+
+void spoutDX::DisableSpoutLogFile()
+{
+	spoututils::DisableSpoutLogFile();
+}
+
+void spoutDX::DisableSpoutLog()
+{
+	spoututils::DisableSpoutLog();
+}
+
 
 //
 // PRIVATE
@@ -1898,23 +1981,25 @@ bool spoutDX::CheckSender(unsigned int width, unsigned int height, DWORD dwForma
 		// Create a shared texture for the sender
 		// A sender creates a new texture with a new share handle
 		m_dxShareHandle = nullptr;
-		spoutdx.CreateSharedDX11Texture(m_pd3dDevice, m_Width, m_Height, (DXGI_FORMAT)m_dwFormat, &m_pSharedTexture, m_dxShareHandle);
-		
+		spoutdx.CreateSharedDX11Texture(m_pd3dDevice, m_Width, m_Height, (DXGI_FORMAT)m_dwFormat, &m_pSharedTexture, m_dxShareHandle, m_bKeyed);
+
 		// Create a sender using the DX11 shared texture handle (m_dxShareHandle)
 		// and specifying the same texture format
 		m_bSpoutInitialized = sendernames.CreateSender(m_SenderName, m_Width, m_Height, m_dxShareHandle, m_dwFormat);
 		
 		// TODO
 		// This could be a separate function SetHostPath
-		SharedTextureInfo info={};
+		SharedTextureInfo info = {}; // Empty structure
 		if (!sendernames.getSharedInfo(m_SenderName, &info)) {
 			SpoutLogWarning("spoutGL::SetHostPath(%s) - could not get sender info", m_SenderName);
 			return false;
 		}
 		char exepath[256]={};
 		GetModuleFileNameA(NULL, exepath, sizeof(exepath));
-		// Description is defined as wide chars, but the path is stored as byte chars
+
+		// Description field is 256 uint8_t
 		strcpy_s((char*)info.description, 256, exepath);
+
 		if (!sendernames.setSharedInfo(m_SenderName, &info)) {
 			SpoutLogWarning("spoutGL::SetHostPath(%s) - could not set sender info", m_SenderName);
 		}
@@ -1924,16 +2009,21 @@ bool spoutDX::CheckSender(unsigned int width, unsigned int height, DWORD dwForma
 		
 		// Enable frame counting so the receiver gets frame number and fps
 		frame.EnableFrameCount(m_SenderName);
+
 	}
 	// Initialized but has the source texture changed size ?
 	else if (m_Width != width || m_Height != height || m_dwFormat != dwFormat) {
 
 		// Re-create the class shared texture with the new size
-		if (m_pSharedTexture) m_pSharedTexture->Release();
+		if (m_pSharedTexture) {
+			spoutdx.ReleaseDX11Texture(m_pSharedTexture);
+			// The existing shared texture is changed on this device
+			m_pImmediateContext->Flush();
+		}
 		m_pSharedTexture = nullptr;
 		m_dxShareHandle = nullptr;
-		spoutdx.CreateSharedDX11Texture(m_pd3dDevice, width, height, (DXGI_FORMAT)dwFormat, &m_pSharedTexture, m_dxShareHandle);
-		
+		spoutdx.CreateSharedDX11Texture(m_pd3dDevice, width, height, (DXGI_FORMAT)dwFormat, &m_pSharedTexture, m_dxShareHandle, m_bKeyed);
+
 		// Update the sender and class variables
 		sendernames.UpdateSender(m_SenderName, width, height, m_dxShareHandle, dwFormat);
 
@@ -2039,7 +2129,7 @@ bool spoutDX::ReceiveSenderData()
 	DWORD dwFormat = m_dwFormat;
 	HANDLE dxShareHandle = m_dxShareHandle;
 
-	// Try to get the sender information
+	// Try to get the sender shared memory information.
 	// Retrieve width, height, sharehandle and format.
 	SharedTextureInfo info={};
 	if (sendernames.getSharedInfo(sendername, &info)) {
@@ -2058,7 +2148,8 @@ bool spoutDX::ReceiveSenderData()
 		// Compatible DX9 formats
 		// 21 =	D3DFMT_A8R8G8B8
 		// 22 = D3DFMT_X8R8G8B8
-		if (dwFormat == 21 || dwFormat == 22) {
+		// 0 - unknown
+		if (dwFormat == 0 || dwFormat == 21 || dwFormat == 22) {
 			// Create a DX11 receiving texture with compatible format
 			dwFormat = (DWORD)DXGI_FORMAT_B8G8R8A8_UNORM;
 		}
@@ -2068,6 +2159,21 @@ bool spoutDX::ReceiveSenderData()
 		//   o for texture size or format change
 		if (dxShareHandle != m_dxShareHandle) {
 
+			/*
+			printf("\nReceiveSenderData : %s \n", sendername);
+			printf("     Width     : %d\n", info.width);
+			printf("     Height    : %d\n", info.height);
+			printf("     Format    : %d (0x%X)\n", info.format, info.format);
+			printf("     handle    : 0x%X\n", info.shareHandle);
+			printf("     Usage     : %d (0x%X)\n", info.usage, info.usage);
+			printf("     Description : [%s]\n", (char*)info.description);
+			printf("     PartnerId : 0x%X\n", info.partnerId);
+			*/
+
+			// LJ DEBUG
+			// ===================================================
+			// Original
+			//
 			// Release everything and start again
 			ReleaseReceiver();
 
@@ -2075,11 +2181,11 @@ bool spoutDX::ReceiveSenderData()
 			m_dxShareHandle = dxShareHandle;
 
 			// Get a new shared texture pointer (m_pSharedTexture)
-			if (!spoutdx.OpenDX11shareHandle(m_pd3dDevice, &m_pSharedTexture, dxShareHandle) ) {
+			if (!spoutdx.OpenDX11shareHandle(m_pd3dDevice, &m_pSharedTexture, dxShareHandle)) {
 
 				// If this fails, the sender graphics adapter might be different
 				SpoutLogWarning("SpoutReceiver::ReceiveSenderData - could not retrieve sender texture from share handle");
-					
+
 				// If a device has been created within this class, we can re-create it
 				// on the fly using a different graphics adapter if auto adapter switching 
 				// has been activated with SetAdapterAuto()
@@ -2111,6 +2217,11 @@ bool spoutDX::ReceiveSenderData()
 			if (desc.Width == 0 || desc.Height == 0)
 				return false;
 
+			// If the sender information format does not match,
+			// use the received shared texture format
+			if (dwFormat != (DWORD)desc.Format)
+				dwFormat = (DWORD)desc.Format;
+
 			// Initialize again with the newly connected sender values
 			CreateReceiver(sendername, width, height, dwFormat);
 
@@ -2126,6 +2237,100 @@ bool spoutDX::ReceiveSenderData()
 
 		// The application can now access and copy the sender texture
 		return true;
+
+			//
+			// ===================================================
+			
+
+
+			/*
+			// LJ DEBUG
+			// ===================================================
+			// With existing mutex lock
+			//
+			// Release everything and start again
+			// ReleaseReceiver();
+
+			// Lock texture access using the named mutex
+			if (frame.CheckAccess()) {
+
+				// Release the sender shared texture pointer
+				if (m_pSharedTexture) m_pSharedTexture->Release();
+				m_pSharedTexture = nullptr;
+
+				// Update the sender share handle
+				m_dxShareHandle = dxShareHandle;
+
+				// If we have a share handle retrieved from the sender information.
+				// Get a new shared texture pointer (m_pSharedTexture) from the share handle.
+				if (m_dxShareHandle) {
+
+					if (!spoutdx.OpenDX11shareHandle(m_pd3dDevice, &m_pSharedTexture, dxShareHandle)) {
+
+						// If this fails, the sender graphics adapter might be different
+						SpoutLogWarning("SpoutReceiver::ReceiveSenderData - could not retrieve sender texture from share handle");
+
+						// If a device has been created within this class, we can re-create it
+						// on the fly using a different graphics adapter if auto adapter switching 
+						// has been activated with SetAdapterAuto()
+						if (m_bClassDevice && m_bAdapt) {
+							// Test to find the sender adapter.
+							// If different, switch to it and retrieve the shared texture pointer.
+							ID3D11Texture2D* pTexture = CheckSenderTexture(sendername, dxShareHandle);
+							// CheckSenderTexture will re-create the class D3D11 device using the sender's adapter
+							if (!pTexture) {
+								// If that failed, retain the share handle so we don't query it again.
+								// m_pSharedTexture is null but will not be used.
+								// LJ DEBUG
+								// Release everything and start again
+								frame.AllowAccess();
+								ReleaseReceiver();
+								// Return true and wait until another sender is selected.
+								return true;
+							}
+							// Use the new sender texture pointer retrieved by CheckSenderTexture
+							m_pSharedTexture = pTexture;
+						}
+						else {
+							// Wait until another sender is selected or the shared texture handle is valid.
+							// LJ DEBUG
+							frame.AllowAccess();
+							ReleaseReceiver();
+							return true;
+						}
+					} // endif OpenDX11shareHandle succeeded
+				} // endif m_dxShareHandle valid
+
+				// Allow texture access
+				frame.AllowAccess();
+			}
+
+			// Get the texture details
+			D3D11_TEXTURE2D_DESC desc;
+			ZeroMemory(&desc, sizeof(desc));
+			m_pSharedTexture->GetDesc(&desc);
+			if (desc.Width == 0 || desc.Height == 0)
+				return false;
+
+			// LJ DEBUG
+			// Initialize again with the newly connected sender values
+			// The existing receiver is released by the function
+			CreateReceiver(sendername, width, height, dwFormat);
+
+			// Return to update the receiving texture or image
+			// If the graphics adapter was changed, the class device will be different
+			// and the texture returned will have been created using that device.
+			m_bUpdated = true;
+
+		}
+		
+		// Connected and intialized
+		// Sender name, width, height, format, texture pointer and share handle have been retrieved
+
+		// The application can now access and copy the sender texture
+		return true;
+		*/
+
 
 	} // end find sender
 
@@ -2276,6 +2481,8 @@ bool spoutDX::CreateDX11StagingTexture(unsigned int width, unsigned int height,	
 	if (!m_pd3dDevice || !pStagingTexture)
 		return false;
 
+	SpoutLogNotice("spoutDX::CreateDX11StagingTexture(%d, %d, %d)",	width, height, format);
+
 	ID3D11Texture2D* pTexture = nullptr;
 
 	pTexture = *pStagingTexture; // The texture pointer
@@ -2284,13 +2491,19 @@ bool spoutDX::CreateDX11StagingTexture(unsigned int width, unsigned int height,	
 		pTexture = nullptr;
 	}
 
+	// Use the format passed in
+	// If that is zero or DX9 format, use the default format
+	DXGI_FORMAT texformat = format;
+	if (format == 0 || format == 21 || format == 22) // D3DFMT_A8R8G8B8 = 21 D3DFMT_X8R8G8B8 = 22
+		texformat = DXGI_FORMAT_B8G8R8A8_UNORM;
+
 	D3D11_TEXTURE2D_DESC desc;
 	ZeroMemory(&desc, sizeof(desc));
 	desc.Width = width;
 	desc.Height = height;
 	desc.MipLevels = 1;
 	desc.ArraySize = 1;
-	desc.Format = format;
+	desc.Format = texformat;
 	desc.SampleDesc.Count = 1;
 	desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ | D3D11_CPU_ACCESS_WRITE;
 	desc.Usage = D3D11_USAGE_STAGING;

@@ -110,6 +110,19 @@
 				 - Code cleanup
 		22.12.22 - Compiler compatibility check
 				   Change all {} initializations to "={}"
+		31.12.22 - increase log char buffer from 512 to 1024
+		01.12.22 - Registry functions
+				     check for empty subkey and valuename strings
+					 include valuename in warnings
+		14.01.23 - OpenSpoutConsole - add MessageBox warning if using a dll
+				   EnableSpoutLog - open console rather than call OpenSpoutConsole
+		15.01.23 - Use SpoutMessageBox so it doesn't freeze the application GUI
+		16.01.23 - Add SpoutMessageBox caption
+		17.01.23 - Add SpoutMessageBox with variable arguments
+				   Add ConPrint for SpoutUtils console (printf replacement)
+				   Remove dll build warning MessageBox.
+				   Change "ConPrint" to "_conprint" and use Writefile instead of cout.
+		18.01.23 - _conprint - cast WriteFile size argument to DWORD
 
 */
 
@@ -141,7 +154,7 @@ namespace spoututils {
 	FILE* pCout = NULL; // for log to console
 	std::ofstream logFile; // for log to file
 	std::string logPath; // folder path for the logfile
-	char logChars[512]={}; // The current log string
+	char logChars[1024]={}; // The current log string
 	bool bConsole = false;
 #ifdef USE_CHRONO
 	std::chrono::steady_clock::time_point start;
@@ -226,12 +239,12 @@ namespace spoututils {
 	//
 	void OpenSpoutConsole()
 	{
-		// AllocConsole fails if the process already has a console
-		// Is a console associated with the calling process?
-		if (GetConsoleWindow()) {
-			bConsole = true;
-		}
-		else {
+		if (!GetConsoleWindow()) {
+	
+			//
+			// Application console window mot found
+			//
+
 			// Get calling process window
 			HWND hwndFgnd = GetForegroundWindow();
 			if (AllocConsole()) {
@@ -257,7 +270,6 @@ namespace spoututils {
 					bConsole = true;
 				}
 			}
-
 		}
 	}
 	
@@ -269,7 +281,7 @@ namespace spoututils {
 	void CloseSpoutConsole(bool bWarning)
 	{
 		if(bWarning) {
-			if(MessageBoxA(NULL, "Console close - are you sure?", "Spout", MB_YESNO) == IDNO)
+			if(MessageBoxA(NULL, "Console close - are you sure?", "CloseSpoutConsole", MB_YESNO) == IDNO)
 				return;
 		}
 		if (pCout) {
@@ -279,7 +291,8 @@ namespace spoututils {
 			bConsole = false;
 		}
 	}
-		
+
+			
 	//
 	// Group: Logs
 	//
@@ -361,7 +374,11 @@ namespace spoututils {
 		bEnableLog = true;
 
 		// Console output
-		if(!bConsole)
+		if (GetConsoleWindow()) {
+			SetConsoleTitleA("Spout Log");
+			bConsole = true;
+		}
+		else if(!bConsole)
 			OpenSpoutConsole();
 
 		// Initialize current log string
@@ -632,10 +649,10 @@ namespace spoututils {
 		if (!format)
 			return;
 
-		char currentLog[512]={}; // allow more than the name length
+		char currentLog[1024]={}; // allow more than the name length
 
 		// Construct the current log
-		vsprintf_s(currentLog, 512, format, args);
+		vsprintf_s(currentLog, 1024, format, args);
 
 		// Return if logging is paused
 		if (!bDoLogs)
@@ -649,12 +666,12 @@ namespace spoututils {
 			// Prevent multiple logs by comparing with the last
 			if (strcmp(currentLog, logChars) == 0) {
 				// Save the current log as the last
-				strcpy_s(logChars, 512, currentLog);
+				strcpy_s(logChars, 1024, currentLog);
 				return;
 			}
 
 			// Save the current log as the last
-			strcpy_s(logChars, 512, currentLog);
+			strcpy_s(logChars, 1024, currentLog);
 
 			// Console logging
 			if (bEnableLog && bConsole) {
@@ -692,6 +709,33 @@ namespace spoututils {
 		}
 	}
 
+	// ---------------------------------------------------------
+	// Function: _conprint
+	// Print to console - (printf replacement).  
+	//
+	int _conprint(const char* format, ...)
+	{
+
+		// Construct the message
+		va_list args;
+		va_start(args, format);
+		vsprintf_s(logChars, 1024, format, args);
+		va_end(args);
+
+		//
+		// Write to the console without line feed
+		//
+		// cout and printf do not write if another console is opened by the application.
+		// WriteFile writes to either of them.
+		//
+		DWORD nBytesWritten = 0;
+		WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), logChars, (DWORD)strlen(logChars), &nBytesWritten, NULL);
+		
+		logChars[0]=0;
+		return (int)nBytesWritten;
+	}
+
+
 	
 	//
 	// Group: MessageBox
@@ -699,7 +743,7 @@ namespace spoututils {
 
 	// ---------------------------------------------------------
 	// Function: SpoutMessageBox
-	// SpoutPanel MessageBox dialog with optional timeout.
+	// MessageBox dialog with optional timeout.
 	//
 	// Used where a Windows MessageBox would interfere with the application GUI.
 	//
@@ -708,13 +752,36 @@ namespace spoututils {
 	{
 		if (!message)
 			return 0;
-
-		return SpoutMessageBox(NULL, message, "spout", MB_OK, dwMilliseconds);
+		return SpoutMessageBox(NULL, message, "Message", MB_OK, dwMilliseconds);
 	}
+
+	// MessageBox with variable arguments
+	int SPOUT_DLLEXP SpoutMessageBox(const char* caption, const char* format, ...)
+	{
+		std::string strmessage;
+		std::string strcaption;
+
+		// Construct the message
+		va_list args;
+		va_start(args, format);
+		vsprintf_s(logChars, 1024, format, args);
+		strmessage = logChars;
+		va_end(args);
+
+		if(caption && *caption)
+			strcaption = caption;
+		else
+			strcaption = "Message";
+
+		return SpoutMessageBox(NULL, strmessage.c_str(), strcaption.c_str(), MB_OK);
+
+	}
+
+
 
 	// ---------------------------------------------------------
 	// Function: SpoutMessageBox
-	// SpoutPanel Messagebox with standard arguments and optional timeout
+	// Messagebox with standard arguments and optional timeout
 	//
 	// Replaces an existing MessageBox call.
 	int SpoutMessageBox(HWND hwnd, LPCSTR message, LPCSTR caption, UINT uType, DWORD dwMilliseconds)
@@ -726,9 +793,19 @@ namespace spoututils {
 
 		// Find if there has been a Spout installation with an install path for SpoutPanel.exe
 		if (ReadPathFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutPanel", "InstallPath", path)) {
-			// Does the file exist ?
+			// Does SpoutPanel exist ?
 			if (_access(path, 0) != -1) {
-				// Open SpoutPanel text message
+
+				//
+				// Add optional arguments
+				//
+
+				// Text dialog caption
+				if (caption && *caption) {
+					spoutmessage += " /CAPTION ";
+					spoutmessage += caption;
+				}
+
 				// If a timeout has been specified, add the timeout option and value
 				// SpoutPanel handles the timeout delay
 				if (dwMilliseconds > 0) {
@@ -777,15 +854,16 @@ namespace spoututils {
 	// Read subkey DWORD value
 	bool ReadDwordFromRegistry(HKEY hKey, const char *subkey, const char *valuename, DWORD *pValue)
 	{
-		if (!subkey || !valuename || !pValue)
+		if (!subkey || !*subkey || !valuename || !*valuename || !pValue)
 			return false;
+		
 
 		DWORD dwKey = 0;
 		DWORD dwSize = sizeof(DWORD);
 		const LONG regres = RegGetValueA(hKey, subkey, valuename, RRF_RT_REG_DWORD, &dwKey, pValue, &dwSize);
 		
 		if (regres != ERROR_SUCCESS) {
-			SpoutLogWarning("ReadDwordFromRegistry - could not read from registry");
+			SpoutLogWarning("ReadDwordFromRegistry - could not read [%s] from registry", valuename);
 			return false;
 		}
 
@@ -798,7 +876,7 @@ namespace spoututils {
 	// Write subkey DWORD value
 	bool WriteDwordToRegistry(HKEY hKey, const char *subkey, const char *valuename, DWORD dwValue)
 	{
-		if (!subkey || !valuename)
+		if (!subkey || !*subkey || !valuename || !*valuename)
 			return false;
 
 		HKEY hRegKey = NULL;
@@ -821,7 +899,7 @@ namespace spoututils {
 		}
 
 		if (regres != ERROR_SUCCESS) {
-			SpoutLogWarning("WriteDwordToRegistry - could not write to registry");
+			SpoutLogWarning("WriteDwordToRegistry - could not write [%s] to registry", valuename);
 			return false;
 		}
 
@@ -833,7 +911,7 @@ namespace spoututils {
 	// Read subkey character string
 	bool ReadPathFromRegistry(HKEY hKey, const char *subkey, const char *valuename, char *filepath, DWORD dwSize)
 	{
-		if (!subkey || !valuename || !filepath)
+		if (!subkey || !*subkey || !valuename || !*valuename || !filepath)
 			return false;
 
 		HKEY  hRegKey = NULL;
@@ -854,7 +932,7 @@ namespace spoututils {
 				SpoutLogWarning("ReadPathFromRegistry -  buffer size (%d) not large enough (%d)", dwSize, dwSizePath);
 			}
 			else {
-				SpoutLogWarning("ReadPathFromRegistry - could not read from registry");
+				SpoutLogWarning("ReadPathFromRegistry - could not read [%s] from registry", valuename);
 			}
 		}
 
@@ -868,7 +946,7 @@ namespace spoututils {
 	// Write subkey character string
 	bool WritePathToRegistry(HKEY hKey, const char *subkey, const char *valuename, const char *filepath)
 	{
-		if (!subkey || !valuename || !filepath)
+		if (!subkey || !*subkey || !valuename || !*valuename || !filepath)
 			return false;
 
 		HKEY  hRegKey = NULL;
@@ -888,7 +966,7 @@ namespace spoututils {
 		}
 
 		if (regres != ERROR_SUCCESS) {
-			SpoutLogWarning("WritePathToRegistry - could not write to registry");
+			SpoutLogWarning("WritePathToRegistry - could not write [%s] to registry", valuename);
 			return false;
 		}
 
@@ -901,7 +979,7 @@ namespace spoututils {
 	// Write subkey binary hex data string
 	bool WriteBinaryToRegistry(HKEY hKey, const char *subkey, const char *valuename, const unsigned char *hexdata, DWORD nChars)
 	{
-		if (!subkey || !valuename || !hexdata)
+		if (!subkey || !*subkey || !valuename || !*valuename || !hexdata)
 			return false;
 
 		HKEY  hRegKey = NULL;
@@ -932,7 +1010,7 @@ namespace spoututils {
 	// Remove subkey value name
 	bool RemovePathFromRegistry(HKEY hKey, const char *subkey, const char *valuename)
 	{
-		if (!subkey || !valuename) {
+		if (!subkey || !*subkey || !valuename) {
 			SpoutLogWarning("RemovePathFromRegistry - no subkey specified");
 			return false;
 		}
@@ -963,7 +1041,7 @@ namespace spoututils {
 	//
 	bool RemoveSubKey(HKEY hKey, const char *subkey)
 	{
-		if (!subkey)
+		if (!subkey || !*subkey)
 			return false;
 
 		const LONG lStatus = RegDeleteKeyA(hKey, subkey);
@@ -979,7 +1057,7 @@ namespace spoututils {
 	// Find subkey
 	bool FindSubKey(HKEY hKey, const char *subkey)
 	{
-		if (!subkey)
+		if (!subkey || !*subkey)
 			return false;
 
 		HKEY hRegKey = NULL;
