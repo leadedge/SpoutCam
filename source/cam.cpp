@@ -290,7 +290,7 @@
 	17.03.23   SpoutDX ReceiveSenderData.
 			   Allow for applications that do not fill the sender information format field.
 			   If no format is specified use a valid D3D11 texture format.
-	18.03.23   Rebuild x86/x64 VS2022 /MT with updated SpoutDX.
+	19.03.23   Rebuild x86/x64 VS2022 /MT with updated SpoutDX.
 			   Version 2.027
 
 

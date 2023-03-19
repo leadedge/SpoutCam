@@ -85,15 +85,6 @@ class SPOUT_DLLEXP spoutDX {
 	bool SendImage(const unsigned char * pData, unsigned int width, unsigned int height);
 	// Sender status
 	bool IsInitialized();
-
-	// LJ DEBUG
-	// Shared texture
-	ID3D11Texture2D* GetTexture();
-	// Shared texture handle
-	HANDLE GetHandle();
-	// Shared texture format
-	DXGI_FORMAT GetFormat();
-
 	// Sender name
 	const char * GetName();
 	// Get width
@@ -334,9 +325,8 @@ protected :
 	bool ReadPixelData(ID3D11Texture2D* pStagingSource, unsigned char* destpixels,
 		unsigned int width, unsigned int height, bool bRGB, bool bInvert, bool bSwap);
 	
-	// Create staging textures
+	// Create or update staging textures
 	bool CheckStagingTextures(unsigned int width, unsigned int height, DWORD dwFormat = DXGI_FORMAT_B8G8R8A8_UNORM);
-	bool CreateDX11StagingTexture(unsigned int width, unsigned int height, DXGI_FORMAT format, ID3D11Texture2D** pStagingTexture);
 
 	// Create or update class texture
 	bool CheckTexture(unsigned int width, unsigned int height, DWORD dwFormat);

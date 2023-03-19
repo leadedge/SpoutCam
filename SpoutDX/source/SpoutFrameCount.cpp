@@ -71,6 +71,7 @@
 //		08.01.23	- CheckTextureAccess/AllowTextureAccess 
 //					  remove texture check for default null texture
 //					  Code review - Use Microsoft Native Recommended rules
+//		19.03.23	- WaitFrameSync - do not block if the sender has not created a sync event
 //
 // ====================================================================================
 //
@@ -842,8 +843,6 @@ bool spoutFrameCount::WaitFrameSync(const char *sendername, DWORD dwTimeout)
 	if (!sendername)
 		return false;
 
-	bool bSignal = false;
-
 	char SyncEventName[256]={};
 	sprintf_s(SyncEventName, 256, "%s_Sync_Event", sendername);
 
@@ -854,9 +853,11 @@ bool spoutFrameCount::WaitFrameSync(const char *sendername, DWORD dwTimeout)
 
 	if (!hSyncEvent) {
 		SpoutLogError("spoutFrameCount::WaitFrameSync - no event");
-		return false;
+		// Do not block if the sender has not created a sync event
+		return true;
 	}
 
+	bool bSignal = false;
 	const DWORD dwWaitResult = WaitForSingleObject(hSyncEvent, dwTimeout);
 	switch (dwWaitResult) {
 		case WAIT_OBJECT_0:
