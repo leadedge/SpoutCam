@@ -291,6 +291,7 @@
 			   Allow for applications that do not fill the sender information format field.
 			   If no format is specified use a valid D3D11 texture format.
 	21.03.23   Update SpoutGL and SpoutDX files
+			   Correct if sized to active sender - width must be a multiple of 4
 			   Rebuild x86/x64 VS2022 /MT
 			   Version 2.027
 
@@ -701,7 +702,9 @@ void CVCamStream::SetResolution(DWORD dwResolution)
 					if (receiver.GetSenderInfo(g_SenderName, width, height, sharehandle, format))
 					{
 						// If not fixed to the a selected resolution, use the sender width and height
-						g_Width = width;
+						// Width must be a multiple of 4
+						g_Width = (width/4)*4;
+						// Aspect ratio is not significantly affected
 						g_Height = height;
 					}
 				}
