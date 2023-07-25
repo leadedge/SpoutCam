@@ -294,8 +294,12 @@
 			   Correct if sized to active sender - width must be a multiple of 4
 			   Rebuild x86/x64 VS2022 /MT
 			   Version 2.027
-
-
+	17.04.23   SpoutCopy - add rgba_to_rgb_sse and rgba_to_bgr_sse
+			   Used in receiveimage
+			   Rebuild x86/x64 VS2022 /MT
+			   Version 2.028
+	25.07.23   Rebuild x86/x64 with Spout version 2.007.011 files
+			   VS2022 /MT Version 2.029
 */
 
 #pragma warning(disable:4244)
@@ -325,8 +329,8 @@ CUnknown * WINAPI CVCam::CreateInstance(LPUNKNOWN lpunk, HRESULT *phr)
 	// Console window
 	// OpenSpoutConsole(); // Empty console
 	// EnableSpoutLog(); // Show error logs
-	// EnableSpoutLogFile("SpoutCamDX_2027");
-	// SpoutLog("SpoutCamDX ~ Vers 2.027\n");
+	// EnableSpoutLogFile("SpoutCamDX_2023");
+	// SpoutLog("SpoutCamDX ~ Vers 2.029\n");
 
 	// For clear options dialog for scaled display
 	SetProcessDPIAware();
