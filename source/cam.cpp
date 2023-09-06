@@ -300,6 +300,13 @@
 			   Version 2.028
 	25.07.23   Rebuild x86/x64 with Spout version 2.007.011 files
 			   VS2022 /MT Version 2.029
+	25.07.23   Elevate privilges of SpoutCamSettings to require Administrator privileges
+	05.08.23   Revise comment to make ReceiveImage rgb flag more clear
+			   Revise SpoutDX ReceiveImage/ReadPixelData to handle RGBA textures
+	06.09.23   Rebuild x86/x64 with Spout version 2.007.012 files
+			   VS2022 /MT Version 2.030
+
+
 */
 
 #pragma warning(disable:4244)
@@ -571,7 +578,7 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 	timeBeginPeriod(g_caps.wPeriodMin);
 
 	//
-	// Retrieve fps and resolution from registry "SpoutCamConfig"
+	// Retrieve fps and resolution from registry "SpoutCamSettings"
 	//		o Fps
 	//			10	0
 	//			15	1
@@ -581,7 +588,7 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 	//			50	4
 	//			60	5
 	//
-	// Fps from SpoutCamConfig (default 3 = 30)
+	// Fps from SpoutCamSettings (default 3 = 30)
 	if (!ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "fps", &dwFps)) {
 		dwFps = 3;
 	}
@@ -599,7 +606,7 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 	//			1280 x 1024		9
 	//			1920 x 1080		10
 	//
-	// Resolution from SpoutCamConfig (default 0 = active sender)
+	// Resolution from SpoutCamSettings (default 0 = active sender)
 	if (!ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "resolution", &dwResolution))
 	{
 		dwResolution = 0;
@@ -933,9 +940,10 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 
 	// DirectX is initialized OK
 	// Get bgr pixels from the sender bgra shared texture
+	// 16 bit or floating point textures not supported
 	// ReceiveImage handles sender detection, connection and copy of pixels
 	if (receiver.ReceiveImage(pData, g_Width, g_Height, true, bInvert)) {
-		// rgb(not rgba) = true, invert = flip user setting
+		// set rgb(i.e. not rgba data) = true, invert = flip user setting
 		// If IsUpdated() returns true, the sender has changed
 		if (receiver.IsUpdated()) {
 			if (strcmp(g_SenderName, receiver.GetSenderName()) != 0) {
