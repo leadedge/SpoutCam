@@ -305,7 +305,8 @@
 			   Revise SpoutDX ReceiveImage/ReadPixelData to handle RGBA textures
 	06.09.23   Rebuild x86/x64 with Spout version 2.007.012 files
 			   VS2022 /MT Version 2.030
-
+	01.12.23   Rebuild x86/x64 with Spout version 2.007.013 files
+			   VS2022 /MT Version 2.031
 
 */
 
@@ -337,7 +338,7 @@ CUnknown * WINAPI CVCam::CreateInstance(LPUNKNOWN lpunk, HRESULT *phr)
 	// OpenSpoutConsole(); // Empty console
 	// EnableSpoutLog(); // Show error logs
 	// EnableSpoutLogFile("SpoutCamDX_2023");
-	// SpoutLog("SpoutCamDX ~ Vers 2.029\n");
+	// SpoutLog("SpoutCamDX ~ Vers 2.031\n");
 
 	// For clear options dialog for scaled display
 	SetProcessDPIAware();

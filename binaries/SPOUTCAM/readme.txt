@@ -5,7 +5,7 @@ SpoutCam is a virtual webcam that is also a Spout receiver.
 
 SPOUTCAM SETTINGS
 
-A separate utility program "SpoutCamSettings" allows options to be selected for SpoutCam.
+A utility program "SpoutCamSettings" allows options to be selected for SpoutCam.
 SpoutCamSettings.exe, 64 bit build, must be copied to this folder,
 
 RESOLUTION

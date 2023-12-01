@@ -12,7 +12,7 @@
 		Thanks and credit to Malcolm Bechard, the author of this file
 		https://github.com/mbechard
 
-		Copyright (c) 2014-2023, Lynn Jarvis. All rights reserved.
+		Copyright (c) 2014-2024, Lynn Jarvis. All rights reserved.
 
 		Redistribution and use in source and binary forms, with or without modification, 
 		are permitted provided that the following conditions are met:
@@ -80,6 +80,19 @@
 // The warning is designated "Prefer" and "C" standard unscoped enums are retained for compatibility.
 #if defined(_MSC_VER)
 #pragma warning(disable:26812) // unscoped enums
+#endif
+
+//
+// For ARM build
+// __movsd intrinsic not defined
+//
+#if defined _M_ARM64
+#include <memory.h>
+inline void __movsd(unsigned long* Destination,
+	const unsigned long* Source, size_t Count)
+{
+	memcpy(Destination, Source, Count);
+}
 #endif
 
 

@@ -9,7 +9,7 @@
 	https://github.com/mbechard	
 
 	- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-	Copyright (c) 2014-2023, Lynn Jarvis. All rights reserved.
+	Copyright (c) 2014-2024, Lynn Jarvis. All rights reserved.
 
 	Redistribution and use in source and binary forms, with or without modification, 
 	are permitted provided that the following conditions are met:
@@ -47,6 +47,10 @@
 #include <unordered_map>
 #include <intrin.h> // for __movsd
 #include <stdint.h> // for _uint32
+#include <assert.h>
+#ifdef _M_ARM64
+#include <sse2neon.h> // For ARM
+#endif
 
 #include "SpoutCommon.h"
 #include "SpoutSharedMemory.h"
