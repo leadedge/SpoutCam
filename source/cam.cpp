@@ -12,7 +12,7 @@
 	after the filter has been loaded. If there is no Sender, 
 	the default is 640x480 with a noise image
 
-	Copyright 2013-2023 Lynn Jarvis - spout@zeal.co
+	Copyright 2013-2024 Lynn Jarvis - spout@zeal.co
 
 	"SpoutCam" is free software: 
 	you can redistribute it and/or modify it under the terms of the GNU
@@ -305,8 +305,13 @@
 			   Revise SpoutDX ReceiveImage/ReadPixelData to handle RGBA textures
 	06.09.23   Rebuild x86/x64 with Spout version 2.007.012 files
 			   VS2022 /MT Version 2.030
-	01.12.23   Rebuild x86/x64 with Spout version 2.007.013 files
-			   VS2022 /MT Version 2.031
+	08.12.23   Rebuild x86/x64 VS2022/MT with Spout version 2.007.013 files
+	30.12.23   Rebuild x86/x64 VS2022/MT for release
+			   Version 2.031
+	09.01.24   SpoutDX::ReadPixelData wait for command completion using FlushWait
+			   Version 2.032
+	23.05.24   SpoutDX::ReadPixelData - RGBA and BGRA texture data to BGR pixels default, RGB for swap
+			   Version 2.033
 
 */
 
@@ -338,7 +343,7 @@ CUnknown * WINAPI CVCam::CreateInstance(LPUNKNOWN lpunk, HRESULT *phr)
 	// OpenSpoutConsole(); // Empty console
 	// EnableSpoutLog(); // Show error logs
 	// EnableSpoutLogFile("SpoutCamDX_2023");
-	// SpoutLog("SpoutCamDX ~ Vers 2.031\n");
+	// SpoutLog("SpoutCamDX ~ Vers 2.032\n");
 
 	// For clear options dialog for scaled display
 	SetProcessDPIAware();
@@ -944,7 +949,7 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 	// 16 bit or floating point textures not supported
 	// ReceiveImage handles sender detection, connection and copy of pixels
 	if (receiver.ReceiveImage(pData, g_Width, g_Height, true, bInvert)) {
-		// set rgb(i.e. not rgba data) = true, invert = flip user setting
+		// bRGB = true : set rgb(i.e. not rgba data), bInvert = true : flip user setting
 		// If IsUpdated() returns true, the sender has changed
 		if (receiver.IsUpdated()) {
 			if (strcmp(g_SenderName, receiver.GetSenderName()) != 0) {

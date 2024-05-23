@@ -4,7 +4,7 @@
 
 			Sender and receiver for DirectX applications
 
-	Copyright (c) 2014-2023 Lynn Jarvis. All rights reserved.
+	Copyright (c) 2014-2024 Lynn Jarvis. All rights reserved.
 
 	Redistribution and use in source and binary forms, with or without modification, 
 	are permitted provided that the following conditions are met:
@@ -32,17 +32,36 @@
 #ifndef __spoutDX__
 #define __spoutDX__
 
-// Change the path as required
+//
+// Change the path as necessary
+//
+// For the repository folder structure, the path prefix is "..\..\SpoutGL\"
+// If the include files are in the same folder there is no prefix.
+// If the files are in a different folder, change the prefix as required.
+//
+// #define PATH_PREFIX
+
+#ifdef PATH_PREFIX
+#include "..\..\SpoutGL\SpoutCommon.h" // for dll build
+#include "..\..\SpoutGL\SpoutSenderNames.h" // for sender creation and update
+#include "..\..\SpoutGL\SpoutDirectX.h" // for creating DX11 textures
+#include "..\..\SpoutGL\SpoutFrameCount.h" // for mutex lock and new frame signal
+#include "..\..\SpoutGL\SpoutCopy.h" // for pixel copy
+#include "..\..\SpoutGL\SpoutUtils.h" // Registry utiities
+#else
 #include "SpoutCommon.h" // for dll build
 #include "SpoutSenderNames.h" // for sender creation and update
 #include "SpoutDirectX.h" // for creating DX11 textures
 #include "SpoutFrameCount.h" // for mutex lock and new frame signal
 #include "SpoutCopy.h" // for pixel copy
 #include "SpoutUtils.h" // Registry utiities
+#endif
 
 #include <direct.h> // for _getcwd
 #include <TlHelp32.h> // for PROCESSENTRY32
 #include <tchar.h> // for _tcsicmp
+#include <psapi.h> // for GetModuleFileNameExA
+#pragma comment(lib, "Psapi.lib")
 
 class SPOUT_DLLEXP spoutDX {
 
@@ -239,19 +258,23 @@ class SPOUT_DLLEXP spoutDX {
 	// Utility
 	//
 
-	void CheckSenderFormat(const char * sendername);
+	void CheckSenderFormat(char * sendername);
 	bool CreateDX11texture(ID3D11Device* pd3dDevice,
 		unsigned int width, unsigned int height,
 		DXGI_FORMAT format, ID3D11Texture2D** ppTexture);
 
 	//
 	// SpoutUtils namespace functions for dll access
+	//
 	void OpenSpoutConsole();
 	void CloseSpoutConsole(bool bWarning = false);
 	void EnableSpoutLog();
 	void EnableSpoutLogFile(const char* filename, bool append = false);
 	void DisableSpoutLogFile();
 	void DisableSpoutLog();
+	int SpoutMessageBox(const char* message, DWORD dwMilliseconds = 0);
+	int SpoutMessageBox(const char* caption, UINT uType, const char* format, ...);
+	int SpoutMessageBox(HWND hwnd, LPCSTR message, LPCSTR caption, UINT uType, DWORD dwMilliseconds = 0);
 
 	//
 	// Data sharing

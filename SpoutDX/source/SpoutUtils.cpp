@@ -152,7 +152,44 @@
 		20.10.23 - Add OpenSpoutLogs to open Spout log folder in Windows explorer
 		20-11-23 - OpenSpoutLogs() - allow for getenv if not Microsoft compile (PR #105)
 		22-11-23 - Remove unused buffer length argument from _dupenv_s
-		01.12.23 - Update Version to "2.007.013"
+		01.12.24 - Update Version to "2.007.013"
+		07.12.23 - Remove SPOUT_DLLEXP from private MessageTaskDialog
+				   Use _access and string find in place of shlwapi path functions
+				   Add GetExePath, GetExeName, RemovePath
+				   Revise : _getLogPath(), _getLogFilePath, _logtofile,
+				   EnableSpoutLog, EnableSpoutLogFile, ShowSpoutLogs,
+				   OpenSpoutConsole, GetNVIDIAmode, SetNVIDIAmode
+		08.12.23 - #ifdef _MSC_VER for linker manifestdependency pragma comment
+				   MessageTaskDialog - correct topmost if a second dialog is opened
+		15.12.23 - Change to #ifdef _WINDOWS for linker manifestdependency pragma comment
+				   Conditional compile of TaskDialogIndirect for _WINDOWS.
+				   MessageBoxTimeoutA for other compilers.
+		16.12.23 - Replace #define _WINDOWS with _MSC_VER for conditional compile for Visual Studio
+				 - MessageTaskDialog - first argumnent HWND instead of HINSTANCE
+				 - SpoutMessageBox - pass in hwnd to MessageTaskDialog
+				 - Add TDF_POSITION_RELATIVE_TO_WINDOW to TaskDialogIndirect config flags
+				 - TaskDialogIndirect centers on the window if hwnd passed in or the monitor if NULL
+		20.12.23 - Remove GetNVIDIAmode, SetNVIDIAmode
+				 - ExecuteProcess - use ShellExecuteEx instead of CreateProcess
+				 - Add SpoutMessageBoxModeless
+				 - Restore modeless SpoutMessageBox functionality using SpoutPanel, > v2.72 required.
+				 - Call MessageTaskDialog directly in all SpoutMessageBox functions
+				 - Use a custom icon if set for SpoutMessageBox functions that do not specify an icon
+				 - Clear custom icon handle after TaskDialogIndirect exit
+				 - Add SpoutMessageBoxWindow
+		21.12.23 - Add std::string GetExeVersion()
+				 - Revise SpoutMessageBoxModeless to test version of SpoutPanel > 2.072
+		27.12.23 - Send OK button message to close taskdialog instead of DestroyWindow for URL click
+				 - Test for custom icon and multiple buttons in MessageTaskDialog
+		Version 2.007.013
+		28.12.23 - SpoutMessageBox - add MB_RIGHT for right aligned text
+		11.03.24 - Add MessageBox dialog with an edit control for text input
+				   Add MessageBox dialog with a combo box control for item selection
+				   Update Taskdialog callback to create the controls and return input
+		19.03.24 - Add icon/button option for variable arguments
+		29.03.24 - Correct ReadPathFromRegistry definition for default size argument
+				   Correct EndTiming definition for microseconds argument
+
 
 */
 
@@ -219,7 +256,7 @@ namespace spoututils {
 	// Return whether the system is a laptop.
 	//
 	// Queries power status. Most likely a laptop if battery power is available. 
-	bool IsLaptop ()
+	bool IsLaptop()
 	{
 		SYSTEM_POWER_STATUS status;
 		if (GetSystemPowerStatus(&status)) {
@@ -255,6 +292,87 @@ namespace spoututils {
 		return hModule;
 	}
 
+	//---------------------------------------------------------
+	// Function: GetExeVersion
+	// Get executable version string
+	//
+	std::string GetExeVersion(const char* path)
+	{
+		// Get product version number
+		std::string productversion;
+		DWORD dwSize = GetFileVersionInfoSizeA(path, nullptr);
+		if (dwSize > 0) {
+			std::vector<BYTE> data(dwSize);
+			if (GetFileVersionInfoA(path, NULL, dwSize, &data[0])) {
+				LPVOID pvProductVersion = NULL;
+				unsigned int iProductVersionLen = 0;
+				if (VerQueryValueA(&data[0], ("\\StringFileInfo\\080904E4\\ProductVersion"), &pvProductVersion, &iProductVersionLen)) {
+					productversion = (char*)pvProductVersion;
+				}
+			}
+		}
+		return productversion;
+	}
+
+	// ---------------------------------------------------------
+	// Function: GetExePath()
+	// Get executable or dll path
+	//
+	std::string GetExePath()
+	{
+		char path[MAX_PATH]{};
+		// exe or dll
+		GetModuleFileNameA(GetCurrentModule(), path, MAX_PATH);
+		std::string exepath = path;
+		// Remove name
+		RemoveName(exepath);
+		return exepath;
+	}
+
+	// ---------------------------------------------------------
+	// Function: GetExeName()
+	// Get executable or dll name
+	//
+	std::string GetExeName()
+	{
+		char path[MAX_PATH]{};
+		GetModuleFileNameA(GetCurrentModule(), path, MAX_PATH);
+		std::string exepath = path;
+		// Remove extension
+		size_t pos = exepath.rfind(".");
+		exepath = exepath.substr(0, pos);
+		// Remove path
+		RemovePath(exepath);
+		return exepath;
+	}
+
+	// ---------------------------------------------------------
+	// Function: RemovePath()
+	// Remove path and return the file name
+	//
+	void RemovePath(std::string& path)
+	{
+		// Remove path
+		size_t pos = path.rfind("\\");
+		if (pos == std::string::npos)
+			pos = path.rfind("/");
+		if (pos != std::string::npos)
+			path = path.substr(pos + 1, path.size() - pos);
+	}
+
+	// ---------------------------------------------------------
+	// Function: RemoveName()
+	// Remove file name and return the path
+	//
+	void RemoveName(std::string& path)
+	{
+		size_t pos = path.rfind("\\");
+		if (pos == std::string::npos)
+			pos = path.rfind("/");
+		if (pos != std::string::npos)
+			path = path.substr(0, pos + 1); // leave trailing backslash
+	}
+
 	//
 	// Group: Console management
 	//
@@ -269,7 +387,7 @@ namespace spoututils {
 	void OpenSpoutConsole()
 	{
 		if (!GetConsoleWindow()) {
-	
+
 			//
 			// Application console window mot found
 			//
@@ -279,18 +397,11 @@ namespace spoututils {
 			if (AllocConsole()) {
 				const errno_t err = freopen_s(&pCout, "CONOUT$", "w", stdout);
 				if (err == 0) {
-					char title[MAX_PATH]={};
-					if (GetModuleFileNameA(GetCurrentModule(), title, MAX_PATH) > 0) {
-						PathStripPathA(title);
-						PathRemoveExtensionA(title);
-						strcat_s(title, MAX_PATH, ".log"); // Executable name
-						SetConsoleTitleA(title);
-					}
-					else {
-						SetConsoleTitleA("Spout Log");
-					}
+					std::string name = GetExeName();
+					name += ".log";
+					SetConsoleTitleA(name.c_str());
 					bConsole = true;
-					// Disable close button
+					// Optional - disable close button
 					// HMENU hmenu = GetSystemMenu(GetConsoleWindow(), FALSE);
 					// EnableMenuItem(hmenu, SC_CLOSE, MF_GRAYED);
 					// Bring the main window to the top again
@@ -310,7 +421,7 @@ namespace spoututils {
 			}
 		}
 	}
-	
+
 	// ---------------------------------------------------------
 	// Function: CloseSpoutConsole
 	// Close console window.
@@ -318,8 +429,8 @@ namespace spoututils {
 	// The optional warning displays a MessageBox if user notification is required.
 	void CloseSpoutConsole(bool bWarning)
 	{
-		if(bWarning) {
-			if(MessageBoxA(NULL, "Console close - are you sure?", "CloseSpoutConsole", MB_YESNO) == IDNO)
+		if (bWarning) {
+			if (MessageBoxA(NULL, "Console close - are you sure?", "CloseSpoutConsole", MB_YESNO) == IDNO)
 				return;
 		}
 		if (pCout) {
@@ -330,7 +441,7 @@ namespace spoututils {
 		}
 	}
 
-			
+
 	//
 	// Group: Logs
 	//
@@ -409,28 +520,18 @@ namespace spoututils {
 	//
 	void EnableSpoutLog()
 	{
-		bEnableLog = true;
-
-		// Console output
-		if (GetConsoleWindow()) {
-			char title[MAX_PATH]={};
-			if (GetModuleFileNameA(GetCurrentModule(), title, MAX_PATH) > 0) {
-				PathStripPathA(title);
-				PathRemoveExtensionA(title);
-				strcat_s(title, MAX_PATH, ".log"); // Executable name
-				SetConsoleTitleA(title);
-			}
-			else {
-				SetConsoleTitleA("Spout Log");
-			}
-			bConsole = true;
-		}
-		else if(!bConsole)
+		if (!GetConsoleWindow())
 			OpenSpoutConsole();
+
+		std::string name = GetExeName();
+		name += ".log";
+		SetConsoleTitleA(name.c_str());
+
+		bConsole = true;
+		bEnableLog = true;
 
 		// Initialize current log string
 		logChars[0] = 0;
-
 	}
 
 	// ---------------------------------------------------------
@@ -592,15 +693,23 @@ namespace spoututils {
 	void ShowSpoutLogs()
 	{
 		char directory[MAX_PATH]={};
+		std::string logfilefolder;
 
 		if (logPath.empty() || _access(logPath.c_str(), 0) == -1) {
-			std::string logfilefolder = _getLogPath();
-			strcpy_s(directory, MAX_PATH, logfilefolder.c_str());
+			logfilefolder = _getLogPath();
 		}
 		else {
-			strcpy_s(directory, MAX_PATH, logPath.c_str());
-			PathRemoveFileSpecA(directory); // Current log file path
+			logfilefolder = logPath.c_str();
+			// Remove file spec
+			size_t pos = logfilefolder.rfind("\\");
+			if (pos == std::string::npos)
+				pos = logfilefolder.rfind("/");
+			if (pos != std::string::npos)
+				logfilefolder = logfilefolder.substr(0, pos);
 		}
+
+		// Current log file path
+		strcpy_s(directory, MAX_PATH, logfilefolder.c_str());
 
 		SHELLEXECUTEINFOA ShExecInfo;
 		memset(&ShExecInfo, 0, sizeof(ShExecInfo));
@@ -609,7 +718,7 @@ namespace spoututils {
 		ShExecInfo.nShow = SW_SHOW;
 		ShellExecuteExA(&ShExecInfo);
 	}
-	
+
 	// ---------------------------------------------------------
 	// Function: SetSpoutLogLevel
 	// Set the current log level
@@ -730,7 +839,7 @@ namespace spoututils {
 				// Yellow text for warnings and errors
 				HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 				if (level == SPOUT_LOG_WARNING || level == SPOUT_LOG_ERROR)
-				    SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_INTENSITY);
+					SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_INTENSITY);
 				if (level != SPOUT_LOG_NONE) {
 					// Show log level
 					fprintf(out, "[%s] ", _levelName(level).c_str());
@@ -786,13 +895,13 @@ namespace spoututils {
 		//
 		DWORD nBytesWritten = 0;
 		WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), logChars, (DWORD)strlen(logChars), &nBytesWritten, NULL);
-		
+
 		logChars[0]=0;
 		return (int)nBytesWritten;
 	}
 
 
-	
+
 	//
 	// Group: MessageBox
 	//
@@ -800,19 +909,20 @@ namespace spoututils {
 	// ---------------------------------------------------------
 	// Function: SpoutMessageBox
 	// MessageBox dialog with optional timeout.
-	//
-	// Used where a Windows MessageBox would interfere with the application GUI.
-	//
 	// The dialog closes itself if a timeout is specified.
-	int SpoutMessageBox(const char * message, DWORD dwMilliseconds)
+	int SpoutMessageBox(const char* message, DWORD dwMilliseconds)
 	{
 		if (!message)
 			return 0;
-		return SpoutMessageBox(NULL, message, "Message", MB_OK, dwMilliseconds);
+
+		return MessageTaskDialog(NULL, message, "Message", MB_OK, dwMilliseconds);
+
 	}
 
+	// ---------------------------------------------------------
+	// Function: SpoutMessageBox
 	// MessageBox with variable arguments
-	int SPOUT_DLLEXP SpoutMessageBox(const char* caption, const char* format, ...)
+	int SpoutMessageBox(const char* caption, const char* format, ...)
 	{
 		std::string strmessage;
 		std::string strcaption;
@@ -824,34 +934,53 @@ namespace spoututils {
 		strmessage = logChars;
 		va_end(args);
 
-		if(caption && *caption)
+		if (caption && *caption)
 			strcaption = caption;
 		else
 			strcaption = "Message";
 
-		return SpoutMessageBox(NULL, strmessage.c_str(), strcaption.c_str(), MB_OK);
-
+		return MessageTaskDialog(NULL, strmessage.c_str(), strcaption.c_str(), MB_OK, 0);
+	
 	}
+
+	// ---------------------------------------------------------
+	// Function: SpoutMessageBox
+	// MessageBox with variable arguments and icon, buttons
+	int SPOUT_DLLEXP SpoutMessageBox(const char* caption, UINT uType, const char* format, ...)
+	{
+		std::string strmessage;
+		std::string strcaption;
+
+		// Construct the message
+		va_list args;
+		va_start(args, format);
+		vsprintf_s(logChars, 1024, format, args);
+		strmessage = logChars;
+		va_end(args);
+
+		if (caption && *caption)
+			strcaption = caption;
+		else
+			strcaption = "Message";
+
+		return MessageTaskDialog(NULL, strmessage.c_str(), strcaption.c_str(), uType, 0);
+	}
+
 
 	// ---------------------------------------------------------
 	// Function: SpoutMessageBox
 	// Messagebox with standard arguments and optional timeout
-	//
 	// Replaces an existing MessageBox call.
-	int SPOUT_DLLEXP SpoutMessageBox(HWND hwnd, LPCSTR message, LPCSTR caption, UINT uType, DWORD dwMilliseconds)
+	int SpoutMessageBox(HWND hwnd, LPCSTR message, LPCSTR caption, UINT uType, DWORD dwMilliseconds)
 	{
-		// hwnd no longer used with taskdialog
-		// Quiet unreferenced parameter
-		hwnd = hwnd; 
-		return MessageTaskDialog(NULL, message, caption, uType, dwMilliseconds);
+		return MessageTaskDialog(hwnd, message, caption, uType, dwMilliseconds);
 	}
 
 	// ---------------------------------------------------------
 	// Function: SpoutMessageBox
-	//
 	// MessageBox dialog with standard arguments
 	// including taskdialog main instruction large text
-	int SPOUT_DLLEXP SpoutMessageBox(HWND hwnd, LPCSTR message, LPCSTR caption, UINT uType, const char* instruction, DWORD dwMilliseconds)
+	int SpoutMessageBox(HWND hwnd, LPCSTR message, LPCSTR caption, UINT uType, const char* instruction, DWORD dwMilliseconds)
 	{
 		hwnd = hwnd;
 
@@ -860,16 +989,70 @@ namespace spoututils {
 		wstrInstruction.resize(size_needed);
 		MultiByteToWideChar(CP_UTF8, 0, instruction, (int)strlen(instruction), &wstrInstruction[0], size_needed);
 
-		return MessageTaskDialog(NULL, message, caption, uType, dwMilliseconds);
+		return MessageTaskDialog(hwnd, message, caption, uType, dwMilliseconds);
+
+	}
+	
+	// ---------------------------------------------------------
+	// Function: SpoutMessageBox
+	// MessageBox dialog with edit control for text input
+	// Can be used in place of a specific application resource dialog
+	//   o For message content, the control is in the footer area
+	//   o If no message, the control is in the main content area
+	//   o All SpoutMessageBox functions such as user icon and buttons are available
+	int SPOUT_DLLEXP SpoutMessageBox(HWND hwnd, LPCSTR message, LPCSTR caption, UINT uType, std::string& text)
+	{
+		bEdit = true;
+
+		// A timeout value of 1000000 signals the Taskdialog callback of message content.
+		// The dialog times out after 1000 seconds but is effectively modal.
+		DWORD dwTimeout = 0;
+		std::string content = "";
+		if (message && *message) {
+			dwTimeout = 1000000;
+			content = message;
+		}
+		int iret = MessageTaskDialog(hwnd, content.c_str(), caption, uType, dwTimeout);
+		if (iret == IDOK) text = stredit;
+		stredit.clear();
+		bEdit = false;
+		return iret;
 	}
 
+	// ---------------------------------------------------------
+	// Function: SpoutMessageBox
+	// MessageBox dialog with a combobox control for item selection
+	// Can be used in place of a specific application resource dialog
+	// Properties the same as the edit control
+	int SPOUT_DLLEXP SpoutMessageBox(HWND hwnd, LPCSTR message, LPCSTR caption, UINT uType, std::vector<std::string> items, int& index)
+	{
+		bCombo = true;
 
+		// Timeout value to signal the Taskdialog callback of message content.
+		DWORD dwTimeout = 0;
+		std::string content = "";
+		if (message && *message) {
+			dwTimeout = 1000000;
+			content = message;
+		}
+
+		// Set taskdialog combo box items vector and selected index
+		comboitems = items;
+		comboindex = index;
+		int iret = MessageTaskDialog(hwnd, content.c_str(), caption, uType, dwTimeout);
+		if (iret == IDOK) index = comboindex;
+		comboitems.clear();
+		comboindex = 0;
+		bCombo = false;
+		return iret;
+
+	}
 
 	// ---------------------------------------------------------
 	// Function: SpoutMessageBoxIcon
 	// Custom icon for SpoutMessageBox from resources
 	// Use together with MB_USERICON
-	void SPOUT_DLLEXP SpoutMessageBoxIcon(HICON hIcon)
+	void SpoutMessageBoxIcon(HICON hIcon)
 	{
 		hTaskIcon = hIcon;
 	}
@@ -878,7 +1061,7 @@ namespace spoututils {
 	// Function: SpoutMessageBoxIcon
 	// Custom icon for SpoutMessageBox from file
 	// Use together with MB_USERICON
-	bool SPOUT_DLLEXP SpoutMessageBoxIcon(std::string iconfile)
+	bool SpoutMessageBoxIcon(std::string iconfile)
 	{
 		hTaskIcon = reinterpret_cast<HICON>(LoadImageA(nullptr, iconfile.c_str(), IMAGE_ICON, 0, 0, LR_LOADFROMFILE));
 		return (hTaskIcon);
@@ -888,17 +1071,76 @@ namespace spoututils {
 	// Function: SpoutMessageBoxButton
 	// Custom button for SpoutMessageBox
 	// Use together with MB_USERBUTTON
-	void SPOUT_DLLEXP SpoutMessageBoxButton(int ID, std::wstring title)
+	void SpoutMessageBoxButton(int ID, std::wstring title)
 	{
 		TDbuttonID.push_back(ID);
 		TDbuttonTitle.push_back(title);
 	}
 
+	// ---------------------------------------------------------
+	// Function: SpoutMessageBoxModeless
+	// Enable modeless functionality using SpoutPanel.exe
+	// Used where a Windows MessageBox would interfere with the application GUI.
+	// Depends on SpoutPanel.exe version 2.072 or greater distributed with Spout release.
+	void SPOUT_DLLEXP SpoutMessageBoxModeless(bool bMode)
+	{
+		// If setting modeless, find the path for SpoutPanel.exe
+		if (bMode) {
+			std::string errmsg;
+			char path[MAX_PATH]{};
+			if (ReadPathFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutPanel", "InstallPath", path)) {
+				// Does SpoutPanel.exe exist in this path ?
+				if (_access(path, 0) != -1) {
+					std::string version = GetExeVersion(path);
+					double fvers = atof(version.c_str());
+					if (fvers >= 2.072) {
+						// Set modeless
+						bModeless = bMode;
+						return;
+					}
+					sprintf_s(path, MAX_PATH, "SpoutPanel version %s\n2.070 or greater required for modeless\n\n", version.c_str());
+					errmsg = path;
+				}
+				else {
+					SpoutLogWarning("SpoutMessageBoxModeless - SpoutPanel.exe not found");
+					errmsg = "SpoutPanel.exe not found\n\n";
+				}
+			}
+			else {
+				SpoutLogWarning("SpoutMessageBoxModeless - SpoutPanel path not found");
+				errmsg = "SpoutPanel path not found\n\n";
+			}
+			// Show a modal SpoutMessageBox and direct to the Spout releases page
+			errmsg += "Download the <a href=\"https://github.com/leadedge/Spout2/releases\">latest Spout release</a>.\n";
+			errmsg += "Run either 'SpoutSettings' or 'SpoutPanel' once.\n";
+			errmsg += "This will establish the path to SpoutPanel.exe\n";
+			errmsg += "to enable modeless function for SpoutMessageBox.\n\n\n";
+			bool oldmode = bModeless;
+			bModeless = false;
+			SpoutMessageBox(NULL, errmsg.c_str(), "Warning", MB_ICONWARNING | MB_OK);
+			bModeless = oldmode;
+			return;
+		}
+		// SpoutPanel found or disable modeless
+		bModeless = bMode;
+	}
+
+
+
+	// ---------------------------------------------------------
+	// Function: SpoutMessageBoxWindow
+	// Window handle for SpoutMessageBox where not specified
+	void SPOUT_DLLEXP SpoutMessageBoxWindow(HWND hWnd)
+	{
+		hwndMain = hWnd;
+	}
+
+
 
 	// ---------------------------------------------------------
 	// Function: CopyToClipBoard
 	// Copy text to the clipboard
-	bool SPOUT_DLLEXP CopyToClipBoard(HWND hwnd, const char* caps)
+	bool CopyToClipBoard(HWND hwnd, const char* caps)
 	{
 		HGLOBAL clipbuffer = NULL;
 		char* buffer = nullptr;
@@ -932,7 +1174,7 @@ namespace spoututils {
 	// ---------------------------------------------------------
 	// Function: OpenSpoutLogs
 	// Open Spout log folder in Windows explorer
-	bool SPOUT_DLLEXP OpenSpoutLogs()
+	bool OpenSpoutLogs()
 	{
 		char* appdatapath = nullptr;
 		errno_t err = 0;
@@ -1186,7 +1428,6 @@ namespace spoututils {
 
 	}
 
-
 	//
 	// Group: Timing
 	//
@@ -1239,12 +1480,16 @@ namespace spoututils {
 		start = std::chrono::steady_clock::now();
 	}
 
-	// Stop timing and return milliseconds elapsed.
+	// Stop timing and return milliseconds or microseconds elapsed.
+	// (microseconds default).
 	// Code console output can be enabled for quick timing tests.
-	double EndTiming() {
+	double EndTiming(bool microseconds) {
 		end = std::chrono::steady_clock::now();
 		double elapsed = 0;
-		elapsed = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()/1000.0);
+		if(microseconds)
+			elapsed = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+		else
+			elapsed = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()/1000.0);
 		return elapsed;
 	}
 
@@ -1394,8 +1639,7 @@ namespace spoututils {
 			if (!bSuccess) {
 				// _dupenv_s or CreateDirectory failed
 				// Find the path of the executable
-				GetModuleFileNameA(NULL, (LPSTR)logpath, sizeof(logpath));
-				PathRemoveFileSpecA((LPSTR)logpath);
+				sprintf_s(logpath, MAX_PATH, GetExePath().c_str());
 			}
 
 			return logpath;
@@ -1405,60 +1649,82 @@ namespace spoututils {
 		std::string _getLogFilePath(const char* filename)
 		{
 			std::string logFilePath; // full path of the log file
-
 			std::string path;
+			size_t pos;
+
+			//
+			// Default log 
+			//
 			if (!filename) {
 				// Use the executable name if no filename was passed in
-				char name[MAX_PATH]={};
-				if (GetModuleFileNameA(GetCurrentModule(), name, MAX_PATH) > 0) {
-					PathStripPathA(name);
-					PathRemoveExtensionA(name);
-					strcat_s(name, MAX_PATH, ".log"); // Executable name
-					path = _getLogPath(); // C:\Users\username\AppData\Roaming\Spout\application.log
-					path += "\\";
-					path += name; // Full path
-				}
+				// C:\Users\username\AppData\Roaming\Spout\exename.log
+				logFilePath = _getLogPath();
+				logFilePath += "\\";
+				logFilePath += GetExeName();
+				logFilePath += ".log";
+				return logFilePath;
 			}
 			else {
 				path = filename;
-			}
-
-			if (!path.empty()) {
-
-				char fname[MAX_PATH]={};
-				strcpy_s(fname, MAX_PATH, path.c_str());
-				PathRemoveBackslashA(fname);
-
+				//
 				// Path without a filename
-				if (PathIsDirectoryA(fname)) {
-					logFilePath = fname;
-					logFilePath += "\\SpoutLog.log";
+				//
+				pos = path.rfind("\\");
+				if (pos == std::string::npos)
+					pos = path.rfind("/");
+				if (pos != std::string::npos && pos == path.size() - 1) {
+					// Path terminates with a backslash
+					pos = path.find(":");
+					if (pos != std::string::npos) {
+						// Path has a drive letter
+						// Add the executable name
+						path += GetExeName();
+						path += ".log";
+						return path;
+					}
 				}
-
+				//
 				// Filename without a path
-				else if (PathIsFileSpecA(fname)) {
-					// Add an extension if none supplied
-					if (PathFindExtensionA(fname) == 0)
-						strcat_s(fname, MAX_PATH, ".log");
-					logFilePath = _getLogPath();
-					logFilePath += "\\";
-					logFilePath += fname;
+				//
+				pos = path.rfind("\\");
+				if (pos == std::string::npos)
+					pos = path.rfind("/");
+				if (pos == std::string::npos) {
+					// Does not have any backslash
+					pos = path.find(":");
+					if (pos == std::string::npos) {
+						// Does not have a drive letter
+						// Add an extension if not supplied
+						pos = path.rfind(".");
+						if (pos == std::string::npos)
+							path += ".log";
+						logFilePath = _getLogPath();
+						logFilePath += "\\";
+						logFilePath += path;
+						return logFilePath;
+					}
 				}
-
-				// Full path with a filename
-				else if (PathFindFileNameA(fname)) {
-					// Add an extension if none supplied
-					if (!PathFindExtensionA(fname))
-						strcat_s(fname, MAX_PATH, ".log");
-					logFilePath = fname;
+				//
+				// Path with a filename
+				//
+				pos = path.rfind("\\");
+				if (pos == std::string::npos)
+					pos = path.rfind("/");
+				if (pos != std::string::npos) {
+					// Has any backslash
+					pos = path.find(":");
+					if (pos != std::string::npos) {
+						// Has a drive letter
+						// Add an extension if none supplied
+						pos = path.rfind(".");
+						if (pos == std::string::npos)
+							path += ".log";
+						return path;
+					}
 				}
 			}
-			else {
-				// If all options fail, logPath is empty and "SpoutLog.log" is used
-				logFilePath = "SpoutLog.log";
-			}
-
-			return logFilePath;
+			// If all options fail "SpoutLog.log" is used
+			return "SpoutLog.log";
 		}
 
 		// Get the name for the current log level
@@ -1494,142 +1760,76 @@ namespace spoututils {
 
 
 		//
-		// Used internally for NVIDIA profile functions
-		//
-
-		//
-		// Get or Set the current mode directly from or to the NVIDIA base profile.
-		// They can be read from the Spout registry keys "NvidiaGPUmode" and "NvidiaThreaded"
-		// after being set by SpoutSettings, but may have been changed independently.
-		// This avoids the need for including the NVAPI library in the Spout library.
-		//
-		// Start SpoutSettings.exe with a command line which writes the mode value 
-		// to the registry and reads back the registry value for the required mode.
-		//
-		// Currently only two keys are supported.
-		//
-		// NvidiaGPUmode - preferred GPU setting.
-		// Fails for unsupported hardware and returns -1
-		// 0 - high performance : 1 - integrated : 2 - auto select : -1 - fail
-		// "Software\\Leading Edge\\Spout", "NvidiaGPUmode"
-		//
-		// NvidiaThreaded - threaded optimization.
-		// 0 - auto : 1 - on : 2 - off
-		// "Software\\Leading Edge\\Spout", "NvidiaThreaded"
-		//
-		bool GetNVIDIAmode(const char *command, int * mode)
-		{
-			if (!mode || !command)
-				return false;
-
-			char exePath[MAX_PATH]={};
-			if (!ReadPathFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\Spout", "SpoutSettings", exePath)) {
-				SpoutLogError("spoututils::GetNVIDIAmode - SpoutSettings path not found");
-				return false;
-			}
-
-			if (!PathFileExistsA(exePath)) {
-				SpoutLogError("spoututils::GetNVIDIAmode - SpoutSettings.exe not found");
-				return false;
-			}
-
-			// SpoutSettings -getCommand
-			// Returns mode in registry
-			char path[MAX_PATH]={};
-			sprintf_s(path, MAX_PATH, "%s -get%s", exePath, command);
-			if (ExecuteProcess(path)) {
-				DWORD dwMode = 0xffff;
-				if (ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\Spout", command, &dwMode)) {
-					*mode = (int)dwMode;
-					return true;
-				}
-				else {
-					SpoutLogError("spoututils::GetNVIDIAmode -  could not read setting from registry");
-				}
-			}
-			else {
-				SpoutLogError("spoututils::GetNVIDIAmode -  could not start SpoutSettings");
-			}
-			return false;
-		}
-
-		// Set the current mode to the NVIDIA base profile
-		// Starts SpoutSettings.exe with a command line
-		// which writes the mode value to the Spout registry
-		bool SetNVIDIAmode(const char *command, int mode)
-		{
-			if (!command)
-				return false;
-
-			// Find SpoutSettings path
-			char exePath[MAX_PATH]={};
-			if (!ReadPathFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\Spout", "SpoutSettings", exePath)) {
-				SpoutLogError("spoututils::SetNVIDIAmode - SpoutSettings path not found");
-				return false;
-			}
-
-			if (!PathFileExistsA(exePath)) {
-				SpoutLogError("spoututils::SetNVIDIAmode - SpoutSettings.exe not found");
-				return false;
-			}
-
-			// SpoutSettings -setCommand mode
-			// Sets the required mode and writes it to the registry
-			char path[MAX_PATH]={};
-			sprintf_s(path, MAX_PATH, "%s -set%s %d", exePath, command, mode);
-			if (ExecuteProcess(path))
-				return true;
-
-			return false;
-		}
-
-		// Open process and wait for completion
-		bool ExecuteProcess(const char *path)
-		{
-			if (!path)
-				return false;
-
-			DWORD dwExitCode = 0; // Exit code when process terminates
-			STARTUPINFOA si = { sizeof(STARTUPINFO) };
-			bool bRet = false;
-
-			ZeroMemory((void *)&si, sizeof(STARTUPINFO));
-			si.cb = sizeof(STARTUPINFO);
-			si.dwFlags = STARTF_USESHOWWINDOW;
-			si.wShowWindow = SW_HIDE;
-			PROCESS_INFORMATION pi;
-			SetCursor(LoadCursor(NULL, IDC_WAIT));
-			if (CreateProcessA(NULL, (LPSTR)path, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
-				// Wait for CreateProcess to finish
-				double elapsed = 0.0;
-				if (pi.hProcess) {
-					StartTiming(); // for 1 second timeout
-					do {
-						if (!GetExitCodeProcess(pi.hProcess, &dwExitCode)) {
-							bRet = false;
-							break;
-						}
-						elapsed = EndTiming(); // msec
-					} while (dwExitCode == STILL_ACTIVE && elapsed < 1000.0);
-					bRet = true;
-				}
-				if (pi.hProcess) CloseHandle(pi.hProcess);
-				if (pi.hThread) CloseHandle(pi.hThread);
-			}
-			else {
-				SpoutLogError("spoututils::ExecuteProcess - CreateProcess failed\n    %s", path);
-				bRet = false;
-			}
-			SetCursor(LoadCursor(NULL, IDC_ARROW));
-
-			return bRet;
-		}
-
-
 		// MessageBox replacement
-		// // https://learn.microsoft.com/en-us/windows/win32/api/commctrl/ns-commctrl-taskdialogconfig
-		int MessageTaskDialog(HINSTANCE hInst, const char* content, const char* caption, DWORD dwButtons, DWORD dwMilliseconds)
+		// 
+		// https://learn.microsoft.com/en-us/windows/win32/api/commctrl/ns-commctrl-taskdialogconfig
+		//
+		int MessageTaskDialog(HWND hWnd, const char* content, const char* caption, DWORD dwButtons, DWORD dwMilliseconds)
 		{
+
+			// HWND passed in
+			// Can also be specified by SpoutMessageBoxWindow
+			if (!hwndMain) hwndMain = hWnd;
+
+			// hinstance of the window
+			HINSTANCE hInst = nullptr;
+			if (hWnd)
+				hInst = (HINSTANCE)GetWindowLongPtrA(hwndMain, GWLP_HINSTANCE);
+
+			// Use a custom icon if set
+			if (hTaskIcon) dwButtons |= MB_USERICON;
+
+			// Use multiple buttons if set
+			if (TDbuttonID.size() > 0) dwButtons |= MB_USERBUTTON;
+
+			//
+			// TaskDialogIndirect is modal and stops the application.
+			// When used within a plugin or similar this can freeze the host application.
+			// To avoid this, the message can be passed on to "SpoutPanel" which then calls 
+			// SpoutMessageBox and because the dialog is part of a separate application
+			// it is effectively modeless and does not affect the calling application
+			//
+			// Activate or de-activate modeless using :
+			//    SpoutMessageBoxModeless(bool bMode);
+			//   
+			// This option is also suitable for compilers other than Visual Studio
+			// that do not support TaskDialogIndirect or do not have control over
+			// using the required Version 6 of Commctrl32.dll.
+			//
+			// Bypass modeless if :
+			//   1) The application has not called SoutMessageBoxModeless
+			//   2) Any dialog is requested that requires user input
+			//
+			if (bModeless
+			  && (dwButtons & MB_USERBUTTON) != MB_USERBUTTON
+			  && (dwButtons & MB_OKCANCEL) != MB_OKCANCEL
+			  && (dwButtons & MB_YESNO) != MB_YESNO
+			  && (dwButtons & MB_YESNOCANCEL) != MB_YESNOCANCEL) {
+				// Construct command line for SpoutPanel
+				std::string str = std::to_string(PtrToUint(hwndMain)); str += ","; // HWND
+				str += content; str += ","; // content
+				str += caption; str += ","; // caption
+				str += std::to_string(dwButtons); str += ","; // buttons
+				str += std::to_string(dwMilliseconds); str += ","; // timeout
+				if (hTaskIcon) {
+					str += std::to_string(PtrToUint(hTaskIcon)); // user icon
+					str += ",";
+				}
+				// Pass on to SpoutPanel
+				return OpenSpoutPanel(str.c_str());
+			}
+
+			//
+			// Drop through for modal TaskDialogIndirect
+			// or MessageBox for compilers other than Visual Studio
+			//
+
+#ifdef _MSC_VER
+
+			//
+			// Visual Studio TaskDialogIndirect
+			//
+
 			// User buttons
 			TASKDIALOG_BUTTON buttons[10]={0};
 
@@ -1673,6 +1873,7 @@ namespace spoututils {
 						buttons[i].pszButtonText = TDbuttonTitle[i].c_str();
 					}
 					// Final button is OK
+					// CANCEL/YES/NO etc have to be added as buttons
 					buttons[i].nButtonID = IDOK;
 					buttons[i].pszButtonText = L"OK";
 				}
@@ -1720,39 +1921,41 @@ namespace spoututils {
 			// MB_ICONINFORMATION  0x40
 			// MB_ICONASTERISK     0x40
 			// MB_USERICON         0x80
-
+			//
 			HICON hMainIcon = NULL; // No user icon
 			WCHAR* wMainIcon = nullptr; // No resource icon
-
 			dwl = dwl & 0xF0; // remove buttons for icons
-			switch(dwl) {
-				case MB_USERICON: // 0x80
-					// Private SpoutUtils icon handle set by SpoutMessageBoxIcon
-					hMainIcon = hTaskIcon;
-					wMainIcon = nullptr;
-					break;
-				case MB_ICONINFORMATION: // 0x40
-					wMainIcon = TD_INFORMATION_ICON;
-					break;
-				case MB_ICONWARNING: // 0x30
-					wMainIcon = TD_WARNING_ICON;
-					break;
-				case MB_ICONQUESTION: // 0x20
-					wMainIcon = TD_INFORMATION_ICON;
-					break;
-				case MB_ICONERROR: // 0x10
-					wMainIcon = TD_ERROR_ICON;
-					break;
-				default:
-					wMainIcon = nullptr;
-					break;
+			if (dwl == MB_USERICON && hTaskIcon) {
+				// Private SpoutUtils icon handle set by SpoutMessageBoxIcon
+				hMainIcon = hTaskIcon;
+				wMainIcon = nullptr;
+			}
+			else {
+				switch (dwl) {
+					case MB_ICONINFORMATION: // 0x40
+						wMainIcon = TD_INFORMATION_ICON;
+						break;
+					case MB_ICONWARNING: // 0x30
+						wMainIcon = TD_WARNING_ICON;
+						break;
+					case MB_ICONQUESTION: // 0x20
+						wMainIcon = TD_INFORMATION_ICON;
+						break;
+					case MB_ICONERROR: // 0x10
+						wMainIcon = TD_ERROR_ICON;
+						break;
+					default:
+						// No icon specified
+						wMainIcon = nullptr;
+						break;
+				}
 			}
 
 			int nButtonPressed        = 0;
 			int nRadioButton          = 0;
 			TASKDIALOGCONFIG config   = {0};
 			config.cbSize             = sizeof(config);
-			config.hwndParent         = NULL;
+			config.hwndParent         = hwndMain;
 			config.hInstance          = hInst;
 			config.pszWindowTitle     = wstrCaption.c_str();
 			config.hMainIcon          = hMainIcon;
@@ -1773,7 +1976,13 @@ namespace spoututils {
 			}
 
 			config.cxWidth            = 0; // auto width - requires TDF_SIZE_TO_CONTENT
-			config.dwFlags            = TDF_SIZE_TO_CONTENT | TDF_CALLBACK_TIMER | TDF_ENABLE_HYPERLINKS;
+			// TDF_POSITION_RELATIVE_TO_WINDOW Indicates that the task dialog is
+			// centered relative to the window specified by hwndParent.
+			// If hwndParent is NULL, the dialog is centered on the monitor.
+			config.dwFlags            = TDF_POSITION_RELATIVE_TO_WINDOW | TDF_SIZE_TO_CONTENT | TDF_CALLBACK_TIMER | TDF_ENABLE_HYPERLINKS;
+			if ((dwButtons & MB_RIGHT) == MB_RIGHT)
+				config.dwFlags |= TDF_RTL_LAYOUT;
+			
 			if (hMainIcon)
 				config.dwFlags        |= TDF_USE_HICON_MAIN; // User icon
 			config.pfCallback         = reinterpret_cast<PFTASKDIALOGCALLBACK>(TDcallbackProc);
@@ -1799,6 +2008,7 @@ namespace spoututils {
 			if (bTopMost && hwndTop) {
 				// Reset the window that was topmost before
 				SetWindowPos(hwndTop, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+				hwndTop = NULL;
 			}
 
 			// Clear global main instruction
@@ -1808,20 +2018,140 @@ namespace spoututils {
 			TDbuttonID.clear();
 			TDbuttonTitle.clear();
 
+			// Clear custom icon handle set by SpoutMessageBoxIcon and activated by MB_USERICON
+			// Use before calling any of the SpoutMessagebox functions
+			hTaskIcon = nullptr;
+
 			// Return button pressed
 			// IDCANCEL, IDNO, IDOK, IDRETRY, IDYES
 			// or custom button ID
 			return nButtonPressed;
-
+#else
+			UNREFERENCED_PARAMETER(hInst);
+			if(MessageBoxTimeoutA(NULL, content, caption, dwButtons, 0, dwMilliseconds) == 0)
+				return MessageBoxA(NULL, content, caption, dwButtons);
+#endif
 		}
 
 		HRESULT TDcallbackProc(HWND hwnd, UINT uNotification, WPARAM wParam, LPARAM lParam, LONG_PTR dwRefData)
 		{
-			// Topmost
+#ifdef _MSC_VER
+			
 			if (uNotification == TDN_CREATED) {
-				if (bTopMost && TaskHwnd == NULL) {
-					TaskHwnd = hwnd;
-					SetWindowPos(TaskHwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+
+				// hInstance of task dialog
+				HINSTANCE hInstTD = (HINSTANCE)GetWindowLongPtrA(hwnd, GWLP_HINSTANCE);
+
+				// Timeout
+				DWORD* pTimeout = reinterpret_cast<DWORD*>(dwRefData); // = tc.lpCallbackData
+
+				// Remove icons from the caption
+				// An icon appears in the caption when using MB_OKCANCEL
+				// or when an icon is set for the taskdialog content
+				SendMessage(hwnd, WM_SETICON, ICON_BIG, NULL);
+				SendMessage(hwnd, WM_SETICON, ICON_SMALL, NULL);
+
+				// Set topmost
+				if (bTopMost) {
+					SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+				}
+
+				// Edit text control
+				if (bEdit) {
+
+					// Position in the main content by default
+					RECT rect{};
+					GetClientRect(hwnd, &rect);
+
+					// Taskdialog client size is larger with an icon
+					int h = rect.bottom-rect.top;
+					int x = rect.left+70;
+					int y = rect.top + 3;
+					// Allow for increased height with an icon
+					if (h > 90) y += 20;
+					int w = 320;
+					h = 24;
+
+					// Look for a timeout of 1000000 as a signal for message content
+					// and position in the the footer area if so.
+					if (*pTimeout && *pTimeout == 1000000) {
+						x = rect.left+10;
+						y = rect.bottom-38;
+						w = 220;
+					}
+
+					hEdit = CreateWindowExA(WS_EX_CLIENTEDGE, "EDIT", "",
+						WS_CHILD | WS_VISIBLE | WS_HSCROLL | ES_AUTOHSCROLL,
+						x, y, w, h,	hwnd, (HMENU)IDC_TASK_EDIT, hInstTD, NULL);
+
+					// Position on top of content
+					BringWindowToTop(hEdit);
+
+					// Set focus to allow user entry
+					SetFocus(hEdit);
+
+				}
+
+				// Combo box control
+				if (bCombo) {
+
+					// Position in the main content by default
+					RECT rect{};
+					GetClientRect(hwnd, &rect);
+
+					// Taskdialog client size
+					int h = rect.bottom-rect.top;
+					int x = rect.left+70;
+					int y = rect.top;
+					// Allow for increased height with an icon
+					if(h > 90) y += 20;
+					int w = 300; 
+					// Combo box inital height. Changed by content.
+					h = 100;
+
+					// Position in the footer area if there is message content
+					if (*pTimeout && *pTimeout == 1000000) {
+						x = rect.left+10;
+						y = rect.bottom-40;
+						w = 220;
+					}
+
+					hCombo = CreateWindowExA(WS_EX_CLIENTEDGE, "COMBOBOX", "",
+						WS_CHILD | WS_VISIBLE | WS_VSCROLL | ES_AUTOVSCROLL | CBS_DROPDOWN,
+						x, y, w, h, hwnd, (HMENU)IDC_TASK_COMBO, hInstTD, NULL);
+
+					// Add combo box items
+					if (comboitems.size() > 0) {
+						for (int i = 0; i<comboitems.size(); i++) {
+							SendMessageA(hCombo, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)comboitems[i].c_str());
+						}
+						// Display an initial item in the selection field
+						SendMessageA(hCombo, CB_SETCURSEL, (WPARAM)comboindex, (LPARAM)0);
+					}
+
+					// Remove icons from the caption
+					SendMessage(hwnd, WM_SETICON, ICON_BIG, NULL);
+					SendMessage(hwnd, WM_SETICON, ICON_SMALL, NULL);
+
+					// Position on top of content
+					BringWindowToTop(hCombo);
+
+				}
+
+			}
+
+			if (uNotification == TDN_DESTROYED) {
+				if (bEdit) {
+					// Get text from edit control
+					char text[MAX_PATH]{};
+					GetWindowTextA(hEdit, text, MAX_PATH);
+					// Move to global string for return
+					stredit = text;
+				}
+
+				if (bCombo) {
+					// Get currently selected index
+					comboindex = (int)SendMessageA(hCombo, (UINT)CB_GETCURSEL, (WPARAM)0, (LPARAM)0);
 				}
 			}
 
@@ -1849,11 +2179,94 @@ namespace spoututils {
 				if (!ShellExecuteExW(&sei)) {
 					return S_FALSE;
 				}
-				DestroyWindow(hwnd);
+				SendMessage(hwnd, TDM_CLICK_BUTTON, IDOK, 0);
 			}
+#endif
 			return S_OK;
-		};
+		}
 
+#ifndef _MSC_VER
+
+		// TimeoutMessageBox replacement for TaskDialogIndirect
+		// https://www.codeproject.com/Articles/7914/MessageBoxTimeout-API
+		int MessageBoxTimeoutA(HWND hWnd, LPCSTR lpText, LPCSTR lpCaption,
+			UINT uType, WORD wLanguageId, DWORD dwMilliseconds)
+		{
+			typedef int(__stdcall* MSGBOXAAPI)(IN HWND hWnd,
+				IN LPCSTR lpText, IN LPCSTR lpCaption, IN UINT uType,
+				IN WORD wLanguageId, IN DWORD dwMilliseconds);
+
+			static MSGBOXAAPI MsgBoxTOA = NULL;
+
+			if (!MsgBoxTOA) {
+				HMODULE hUser32 = GetModuleHandleA("user32.dll");
+				if (hUser32) {
+					MsgBoxTOA = (MSGBOXAAPI)GetProcAddress(hUser32, "MessageBoxTimeoutA");
+				}
+				else {
+					// Return to call MessageBox())
+					return 0;
+				}
+			}
+			if (MsgBoxTOA)
+				return MsgBoxTOA(hWnd, lpText, lpCaption, uType, wLanguageId, dwMilliseconds);
+			return 0;
+		}
+#endif
+
+		//---------------------------------------------------------
+		// Function: ExecuteProcess
+		// Open process using ShellExecuteEx
+		bool ExecuteProcess(const char* path, const char* commandline)
+		{
+			if (!path)
+				return false;
+
+			SHELLEXECUTEINFOA ShExecInfo{};
+			ZeroMemory(&ShExecInfo, sizeof(ShExecInfo));
+			ShExecInfo.cbSize = sizeof(SHELLEXECUTEINFOA);
+			ShExecInfo.fMask = SEE_MASK_NOCLOSEPROCESS;
+			ShExecInfo.lpFile = (LPCSTR)path;
+			if (commandline)
+				ShExecInfo.lpParameters = commandline;
+			ShExecInfo.nShow = SW_SHOW;
+
+			return ShellExecuteExA(&ShExecInfo);
+
+		}
+
+		//---------------------------------------------------------
+		// Function: OpenSpoutPanel
+		//  Open SpoutPanel.exe with command line for
+		//  SpoutMessageBox as a modeless dialog
+		//  "SpoutMessageBoxModeless" must have been previously called
+		bool OpenSpoutPanel(const char* message)
+		{
+			if (!bModeless || !message || !*message)
+				return false;
+
+			// SpoutPanel.exe has already been found by SpoutMessageBoxModeless
+			// Get the path again for ExecuteProcess
+			char path[MAX_PATH]{};
+			if (!ReadPathFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutPanel", "InstallPath", path))
+				return false;
+
+			bool bRet = false;
+			// Check whether SpoutPanel is already running
+			HANDLE hMutex = OpenMutexA(MUTEX_ALL_ACCESS, 0, "SpoutPanel");
+			if (!hMutex) {
+				// No mutex, not running so can open it
+				std::string cmdline= " ";
+				cmdline += message;
+				bRet = ExecuteProcess(path, message);
+			}
+
+			// Close the mutex now or it is never released
+			if (hMutex) CloseHandle(hMutex);
+
+			return bRet;
+
+		} // end OpenSpoutPanel
 		
 	} // end private namespace
 

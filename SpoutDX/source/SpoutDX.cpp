@@ -135,10 +135,27 @@
 //					  Retain option in SpoutDirectX CreateSharedDX11Texture.
 //		04.08.23	- Correct unused m_bKeyed argument for CreateSharedDX11Texture
 //		28.08.23	- Add ReadTexurePixels utility function
+//		30.08.23	- Add include path prefix define in header file
+//		16.09.23	- SendTexture with offsets - check the texture and region sizes
+//		13.10.23	- CheckSender - use GetModuleFileNameEx
+//		26.10.23	- CheckSender - correct exepath test
+//					  Test QueryFullProcessImageName
+//		28.10.23	- CheckSender - executable path retrieved in SpoutSenderNames::SetSenderInfo
+//		02.12.23	- Update and test examples with 2.007.013 SpoutGL files. No other changes.
+//		06.12.23	- SetSenderName - use SpoutUtils GetExeName()
+//		02.01.24	- ReadPixelData - wait for command completion using FlushWait
+//		06.03.24	- SetReceiverName - clear the receiver name if null passed
+//		13.04.24	- Add SpoutMessageBox functions for dll access
+//		25.04.24	- Correct SpoutMessageBox(const char* caption, UINT uType, const char* format)
+//					  to apps though uType
+//		21.05.24	- CheckSenderFormat remove const from name argument
+//		22.05.24	  CheckSpoutPanel - Register sender only if not already registered
+//		23.05.24	- ReadPixelData/ReadTexurePixels - use global m_bSwapRB flag instead of false
+//					  ReadPixelData - RGBA and BGRA texture data to BGR pixels default, RGB for swap
 //
 // ====================================================================================
 /*
-	Copyright (c) 2014-2023, Lynn Jarvis. All rights reserved.
+	Copyright (c) 2014-2024, Lynn Jarvis. All rights reserved.
 
 	Redistribution and use in source and binary forms, with or without modification, 
 	are permitted provided that the following conditions are met:
@@ -356,27 +373,33 @@ bool spoutDX::IsClassDevice()
 bool spoutDX::SetSenderName(const char* sendername)
 {
 	if (!sendername) {
-		// Get executable name as default
-		GetModuleFileNameA(NULL, m_SenderName, 256);
-		PathStripPathA(m_SenderName);
-		PathRemoveExtensionA(m_SenderName);
+		// Executable name default
+		strcpy_s(m_SenderName, 256, GetExeName().c_str());
 	}
 	else {
 		strcpy_s(m_SenderName, 256, sendername);
 	}
 
-	// If a sender with this name is already registered, create an incremented name
-	int i = 1;
-	char name[256]={};
+	// If a sender with this name is already registered,
+	// create an incremented name, because this function
+	// precedes SpoutSenderNames::RegisterSenderName
+	char name[256]{};
 	strcpy_s(name, 256, m_SenderName);
 	if (sendernames.FindSenderName(name)) {
+		int i = 1;
 		do {
 			sprintf_s(name, 256, "%s_%d", m_SenderName, i);
 			i++;
 		} while (sendernames.FindSenderName(name));
+		// Re-set the global sender name
+		strcpy_s(m_SenderName, 256, name);
 	}
-	// Re-set the global sender name
-	strcpy_s(m_SenderName, 256, name);
+
+	// Remove the sender from the names list if it's
+	// shared memory information does not exist.
+	// This can happen if the sender has crashed or if a
+	// console window was closed instead of the main program.
+	sendernames.CleanSenders();
 
 	return true;
 }
@@ -537,12 +560,18 @@ bool spoutDX::SendTexture(ID3D11Texture2D* pTexture,
 
 	// Get the region to copy
 	D3D11_BOX sourceRegion={};
-	sourceRegion.left = xoffset;
-	sourceRegion.right = xoffset+width;
-	sourceRegion.top = yoffset;
-	sourceRegion.bottom = yoffset+height;
-	sourceRegion.front = 0;
-	sourceRegion.back = 1;
+	sourceRegion.left    = xoffset;
+	sourceRegion.right   = xoffset+width;
+	sourceRegion.top     = yoffset;
+	sourceRegion.bottom  = yoffset+height;
+	sourceRegion.front   = 0;
+	sourceRegion.back    = 1;
+
+	// Check the texture and region sizes
+	if ((sourceRegion.right-sourceRegion.left) > desc.Width
+	 || (sourceRegion.bottom-sourceRegion.top) > desc.Height) {
+		return false;
+	}
 
 	// Check the sender mutex for access the shared texture
 	if (frame.CheckTextureAccess(m_pSharedTexture)) {
@@ -666,6 +695,11 @@ void spoutDX::SetReceiverName(const char * SenderName)
 	if (SenderName && SenderName[0]) {
 		strcpy_s(m_SenderNameSetup, 256, SenderName);
 		strcpy_s(m_SenderName, 256, SenderName);
+	}
+	else {
+		// Clear the receiver name
+		m_SenderNameSetup[0] = 0;
+		m_SenderName[0] = 0;
 	}
 }
 
@@ -914,7 +948,7 @@ bool spoutDX::ReceiveImage(unsigned char * pixels,
 				// Copy from the sender's shared texture to the first staging texture
 				m_pImmediateContext->CopyResource(m_pStaging[m_Index], m_pSharedTexture);
 				// Map and read from the second while the first is occupied
-				ReadPixelData(m_pStaging[m_NextIndex], pixels, width, height, bRGB, bInvert, false);
+				ReadPixelData(m_pStaging[m_NextIndex], pixels, width, height, bRGB, bInvert, m_bSwapRB);
 			}
 			// Allow access to the shared texture
 			frame.AllowTextureAccess(m_pSharedTexture);
@@ -965,7 +999,7 @@ bool spoutDX::ReadTexurePixels(ID3D11Texture2D* pTexture, unsigned char* pixels)
 	m_pImmediateContext->CopyResource(m_pStaging[m_Index], pTexture);
 
 	// Map and read from the second while the first is occupied
-	ReadPixelData(m_pStaging[m_NextIndex], pixels, width, height, false, false, false);
+	ReadPixelData(m_pStaging[m_NextIndex], pixels, width, height, false, false, m_bSwapRB);
 
 	return true;
 
@@ -1889,7 +1923,7 @@ bool spoutDX::CreateDX11texture(ID3D11Device* pd3dDevice,
 // If format is zero, try to open the sharehandle
 // and write the correct format back to shared memory
 // Also register the sender name if not already
-void spoutDX::CheckSenderFormat(const char * sendername)
+void spoutDX::CheckSenderFormat(char * sendername)
 {
 	SharedTextureInfo info={};
 
@@ -1927,6 +1961,7 @@ void spoutDX::CheckSenderFormat(const char * sendername)
 	}
 }
 
+
 //
 // SpoutUtils namespace functions for dll access
 //
@@ -1961,6 +1996,37 @@ void spoutDX::DisableSpoutLog()
 	spoututils::DisableSpoutLog();
 }
 
+int spoutDX::SpoutMessageBox(const char* message, DWORD dwMilliseconds)
+{
+	return spoututils::SpoutMessageBox(message, dwMilliseconds);
+}
+
+int spoutDX::SpoutMessageBox(const char* caption, UINT uType, const char* format, ...)
+{
+	std::string strmessage;
+	std::string strcaption;
+	char logChars[1024]={};
+
+	// Construct the message
+	va_list args;
+	va_start(args, format);
+	vsprintf_s(logChars, 1024, format, args);
+	strmessage = logChars;
+	va_end(args);
+
+	if (caption && *caption)
+		strcaption = caption;
+	else
+		strcaption = "Message";
+
+	return spoututils::SpoutMessageBox(NULL, strmessage.c_str(), caption, strcaption.c_str(), uType, 0);
+
+}
+
+int spoutDX::SpoutMessageBox(HWND hwnd, LPCSTR message, LPCSTR caption, UINT uType, DWORD dwMilliseconds)
+{
+	return spoututils::SpoutMessageBox(hwnd, message, caption, uType, dwMilliseconds);
+}
 
 
 //
@@ -2008,63 +2074,55 @@ bool spoutDX::CheckSender(unsigned int width, unsigned int height, DWORD dwForma
 		m_dwFormat = dwFormat;
 
 		// Create a sender using the DX11 shared texture handle (m_dxShareHandle)
-		// and specifying the same texture format
-		m_bSpoutInitialized = sendernames.CreateSender(m_SenderName, m_Width, m_Height, m_dxShareHandle, m_dwFormat);
+		// and specifying the same texture format.
+		if (sendernames.CreateSender(m_SenderName, m_Width, m_Height, m_dxShareHandle, m_dwFormat)) {
 
-		// This could be a separate function SetHostPath
-		SharedTextureInfo info ={}; // Empty structure
-		if (sendernames.getSharedInfo(m_SenderName, &info)) {
-			char exepath[256]={};
-			GetModuleFileNameA(NULL, exepath, sizeof(exepath));
-			// Description field is 256 uint8_t
-			strcpy_s((char*)info.description, 256, exepath);
-			if (!sendernames.setSharedInfo(m_SenderName, &info)) {
-				SpoutLogWarning("spoutDX::CheckSender - could not set sender info", m_SenderName);
-			}
+			// sendernames::SetSenderInfo writes the sender information to shared memory
+			// including the sender executable path
+
+			// Create a sender mutex for access to the shared texture
+			frame.CreateAccessMutex(m_SenderName);
+
+			// Enable frame counting so the receiver gets frame number and fps
+			frame.EnableFrameCount(m_SenderName);
+
+			m_bSpoutInitialized = true;
 		}
 		else {
-			SpoutLogWarning("spoutDX::CheckSender - could not get sender info (%s)", m_SenderName);
+			SpoutLogWarning("spoutDX::CheckSender - could not get create sender");
+			return false;
 		}
+	} // end create sender
 
-		// Create a sender mutex for access to the shared texture
-		frame.CreateAccessMutex(m_SenderName);
-
-		// Enable frame counting so the receiver gets frame number and fps
-		frame.EnableFrameCount(m_SenderName);
-
-	}
 	// Initialized but has the source texture changed size ?
-	else {
-		if (m_Width != width || m_Height != height || m_dwFormat != dwFormat) {
-			SpoutLogNotice("spoutDX::CheckSender - size change from %dx%d to %dx%d\n", m_Width, m_Height, width, height);
-			if (m_pSharedTexture) {
-				spoutdx.ReleaseDX11Texture(m_pSharedTexture);
-				// The existing shared texture is changed on this device
-				m_pImmediateContext->Flush();
-			}
-			m_pSharedTexture = nullptr;
-			m_dxShareHandle = nullptr;
+	if (m_Width != width || m_Height != height || m_dwFormat != dwFormat) {
+		SpoutLogNotice("spoutDX::CheckSender - size change from %dx%d to %dx%d\n", m_Width, m_Height, width, height);
+		if (m_pSharedTexture) {
+			spoutdx.ReleaseDX11Texture(m_pSharedTexture);
+			// The existing shared texture is changed on this device
+			m_pImmediateContext->Flush();
+		}
+		m_pSharedTexture = nullptr;
+		m_dxShareHandle = nullptr;
 
-			if (!spoutdx.CreateSharedDX11Texture(m_pd3dDevice, width, height, (DXGI_FORMAT)dwFormat, &m_pSharedTexture, m_dxShareHandle)) {
-				SpoutLogWarning("spoutDX::CheckSender - could not re-create shared texture");
-				return false;
-			}
-
-			// Update the sender information
-			sendernames.UpdateSender(m_SenderName, width, height, m_dxShareHandle, dwFormat);
-
-			// Update class variables
-			m_Width = width;
-			m_Height = height;
-			m_dwFormat = dwFormat;
+		if (!spoutdx.CreateSharedDX11Texture(m_pd3dDevice, width, height, (DXGI_FORMAT)dwFormat, &m_pSharedTexture, m_dxShareHandle)) {
+			SpoutLogWarning("spoutDX::CheckSender - could not re-create shared texture");
+			return false;
 		}
 
-	} // endif initialization or size checks
+		// Update the sender information
+		sendernames.UpdateSender(m_SenderName, width, height, m_dxShareHandle, dwFormat);
+
+		// Update class variables
+		m_Width = width;
+		m_Height = height;
+		m_dwFormat = dwFormat;
+
+	} // end size checks
 
 	return true;
 
 }
-
 
 //---------------------------------------------------------
 // Used when the sender was there but the texture pointer could not be retrieved from the share handle.
@@ -2301,9 +2359,9 @@ void spoutDX::CreateReceiver(const char * SenderName, unsigned int width, unsign
 //
 // A class device and context must have been created using OpenDirectX11()
 //
-// bRGB - pixel data is RGB instead of RGBA
+// bRGB    - pixel data is RGB instead of RGBA
 // bInvert - flip the image
-// bSwap - swap red/blue (BGRA/RGBA). Not available for re-sample
+// bSwap   - swap red/blue (BGRA/RGBA). Not available for re-sample
 //
 bool spoutDX::ReadPixelData(ID3D11Texture2D* pStagingSource, unsigned char* destpixels,
 	unsigned int width, unsigned int height, bool bRGB, bool bInvert, bool bSwap)
@@ -2314,62 +2372,68 @@ bool spoutDX::ReadPixelData(ID3D11Texture2D* pStagingSource, unsigned char* dest
 	// Map the staging texture resource so we can access the pixels
 	D3D11_MAPPED_SUBRESOURCE mappedSubResource={};
 	// Make sure all commands are done before mapping the staging texture
-	m_pImmediateContext->Flush();
+	spoutdx.FlushWait(m_pd3dDevice, m_pImmediateContext);
 	// Map waits for GPU access
 	const HRESULT hr = m_pImmediateContext->Map(pStagingSource, 0, D3D11_MAP_READ, 0, &mappedSubResource);
 	if (SUCCEEDED(hr)) {
 		// Copy the staging texture pixels to the user buffer
 		if (!bRGB) {
+			//
 			// RGBA pixel buffer
+			//
 			// TODO : test rgba-rgba resample
 			// TODO : rgba2bgraResample
 			if (width != m_Width || height != m_Height) {
-				spoutcopy.rgba2rgbaResample(mappedSubResource.pData, destpixels, m_Width, m_Height, mappedSubResource.RowPitch, width, height, bInvert);
+				spoutcopy.rgba2rgbaResample(mappedSubResource.pData, destpixels, m_Width, m_Height,
+					mappedSubResource.RowPitch, width, height, bInvert);
 			}
 			else {
 				// Copy rgba to bgra line by line allowing for source pitch using the fastest method
 				// Uses SSE3 copy function if line data is 16bit aligned (see SpoutCopy.cpp)
-				if (bSwap) {
+				if (bSwap)
 					spoutcopy.rgba2bgra(mappedSubResource.pData, destpixels, width, height, mappedSubResource.RowPitch, bInvert);
-				}
-				else {
+				else
 					spoutcopy.rgba2rgba(mappedSubResource.pData, destpixels, width, height, mappedSubResource.RowPitch, bInvert);
-				}
 			}
 		}
-		else if (m_dwFormat == 28) { // DXGI_FORMAT_R8G8B8A8_UNORM
-			// RGBA texture - RGB/BGR pixel buffer
+		else if (m_dwFormat == 28) { // RGBA - DXGI_FORMAT_R8G8B8A8_UNORM
+			//
+			// RGBA texture to BGR/RGB pixels
+			// BGR is default, RGB is swapped
+			// default RGBA texture > BGR pixels
+			// if swap RGBA texture > RGB pixels
+			//
 			// If the texture format is RGBA it has to be converted to RGB/BGR by the staging texture copy
 			if (width != m_Width || height != m_Height) {
-				if(bSwap)
-					spoutcopy.rgba2bgrResample(mappedSubResource.pData, destpixels, m_Width, m_Height, mappedSubResource.RowPitch, width, height, bInvert);
-				else
-					spoutcopy.rgba2rgbResample(mappedSubResource.pData, destpixels, m_Width, m_Height, mappedSubResource.RowPitch, width, height, bInvert);
+				spoutcopy.rgba2rgbResample(mappedSubResource.pData, destpixels, m_Width, m_Height, mappedSubResource.RowPitch,
+					width, height, bInvert, m_bMirror, !bSwap);
 			}
 			else {
 				// Copy RGBA to RGB or BGR allowing for source line pitch using the fastest method
 				// Uses SSE3 conversion functions if data is 16bit aligned (see SpoutCopy.cpp)
-				if (bSwap)
-					spoutcopy.rgba2rgb(mappedSubResource.pData, destpixels, m_Width, m_Height, mappedSubResource.RowPitch, bInvert, true);
-				else
-					spoutcopy.rgba2rgb(mappedSubResource.pData, destpixels, m_Width, m_Height, mappedSubResource.RowPitch, bInvert, false);
+				spoutcopy.rgba2rgb(mappedSubResource.pData, destpixels, m_Width, m_Height,
+					mappedSubResource.RowPitch, bInvert, m_bMirror, !bSwap); // reverse swap flag for RGBA
 			}
 		}
 		else {
+			//
+			// BGRA texture to BGR/RGB pixels
+			// BGR is default, RGB is swapped
+			// default BGRA texture > BGR pixels
+			// if swap BGRA texture > RGB pixels
+			//
 			if (width != m_Width || height != m_Height) {
-				spoutcopy.rgba2rgbResample(mappedSubResource.pData, destpixels, m_Width, m_Height, mappedSubResource.RowPitch, width, height, bInvert, m_bMirror, m_bSwapRB);
+				spoutcopy.rgba2rgbResample(mappedSubResource.pData, destpixels, m_Width, m_Height,
+					mappedSubResource.RowPitch, width, height, bInvert, m_bMirror, bSwap);
 			}
 			else {
 				// Approx 5 msec at 1920x1080
-				spoutcopy.rgba2rgb(mappedSubResource.pData, destpixels, m_Width, m_Height, mappedSubResource.RowPitch, bInvert, m_bMirror, m_bSwapRB);
+				spoutcopy.rgba2rgb(mappedSubResource.pData, destpixels, m_Width, m_Height,
+					mappedSubResource.RowPitch, bInvert, m_bMirror, bSwap);
 			}
-
 		}
-
 		m_pImmediateContext->Unmap(pStagingSource, 0);
-
 		return true;
-
 	} // endif DX11 map OK
 
 	return false;
@@ -2467,12 +2531,14 @@ void spoutDX::SelectSenderPanel()
 		_splitpath_s(path, drive, MAX_PATH, dir, MAX_PATH, fname, MAX_PATH, NULL, 0);
 		_makepath_s(path, MAX_PATH, drive, dir, "SpoutPanel", ".exe");
 		// Does SpoutPanel.exe exist in this path ?
-		if (!PathFileExistsA(path)) {
+		if(_access(path, 0) == -1) {
+		// if (!PathFileExistsA(path)) {
 			// Try the current working directory
 			if (_getcwd(path, MAX_PATH)) {
 				strcat_s(path, MAX_PATH, "\\SpoutPanel.exe");
 				// Does SpoutPanel exist here?
-				if (!PathFileExistsA(path)) {
+				if (_access(path, 0) == -1) {
+				// if (!PathFileExistsA(path)) {
 					SpoutLogWarning("spoutDX::SelectSender - SpoutPanel path not found");
 					return;
 				}
@@ -2618,9 +2684,12 @@ bool spoutDX::CheckSpoutPanel(char *sendername, int maxchars)
 							// Register the sender if it exists
 							if (newname[0] != 0) {
 								if (sendernames.getSharedInfo(newname, &TextureInfo)) {
-									// Register in the list of senders and make it the active sender
-									sendernames.RegisterSenderName(newname);
-									sendernames.SetActiveSender(newname);
+									// If not already registered
+									if (!sendernames.FindSenderName(newname)) {
+										// Register in the list of senders and make it the active sender
+										sendernames.RegisterSenderName(newname);
+										sendernames.SetActiveSender(newname);
+									}
 								}
 							}
 						}

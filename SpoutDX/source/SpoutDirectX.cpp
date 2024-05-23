@@ -157,6 +157,10 @@
 //	Version 2.007.012
 //		07.08.23	- Comment out code for debug layers
 //		19.10.23	- GetNumAdapters - remove unused adapter description and output list
+//	Version 2.007.013
+//		18.02.24	- GetNumAdapters
+//					    Change adapter pointer to IDXGIAdapter1 and use EnumAdapters1
+//					    to identify and skip the Basic Render Driver adapter
 //
 // ====================================================================================
 /*
@@ -212,6 +216,7 @@ spoutDirectX::spoutDirectX() {
 	// Programmer can set for an application
 	m_AdapterIndex  = 0; // Adapter index
 	m_pAdapterDX11  = nullptr; // DX11 adapter pointer
+
 }
 
 spoutDirectX::~spoutDirectX() {
@@ -556,7 +561,7 @@ bool spoutDirectX::CreateSharedDX11Texture(ID3D11Device* pd3dDevice,
 	}
 
 	SpoutLogNotice("spoutDirectX::CreateSharedDX11Texture");
-	SpoutLogNotice("    pDevice = 0x%.7X, width = %d, height = %d, format = 0x%X (%d)", PtrToUint(pd3dDevice), width, height, format, format);
+	SpoutLogNotice("    pDevice = 0x%.7X, width = %u, height = %u, format = 0x%X (%d)", PtrToUint(pd3dDevice), width, height, format, format);
 
 	// Use the format passed in
 	// If that is zero or DX9 format, use the default format
@@ -1066,8 +1071,10 @@ void spoutDirectX::Wait(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pImmediat
 int spoutDirectX::GetNumAdapters()
 {
 	IDXGIFactory1* _dxgi_factory1 = nullptr;
-	IDXGIAdapter* adapter1_ptr = nullptr;
+	IDXGIAdapter1* adapter1_ptr = nullptr;
+	DXGI_ADAPTER_DESC1 desc={0};
 	UINT32 i = 0;
+	UINT32 nAdapters = 0;
 
 	// Enum Adapters first : multiple video cards
 	if (FAILED(CreateDXGIFactory1(__uuidof(IDXGIFactory1), (void**)&_dxgi_factory1))) {
@@ -1076,53 +1083,35 @@ int spoutDirectX::GetNumAdapters()
 	}
 	if (!_dxgi_factory1) return 0;
 
-	for (i = 0; _dxgi_factory1->EnumAdapters( i, &adapter1_ptr ) != DXGI_ERROR_NOT_FOUND; i++ )	{
-		if (!adapter1_ptr) break;
-		/*
-		// Adapter description
-		// Currently not used
-		DXGI_ADAPTER_DESC desc;
-		adapter1_ptr->GetDesc( &desc );
-		// printf(" Adapter(%d) : %S\n", i, desc.Description );
-		// printf(" Vendor Id : %d\n", desc.VendorId );
-		// printf(" Dedicated System Memory : %.0f MiB\n", (float)desc.DedicatedSystemMemory / (1024.f * 1024.f) );
-		// printf(" Dedicated Video Memory : %.0f MiB\n", (float)desc.DedicatedVideoMemory / (1024.f * 1024.f) );
-		// printf(" Shared System Memory : %.0f MiB\n", (float)desc.SharedSystemMemory / (1024.f * 1024.f) );
-		// LUID  DWORD LowPart; LONG HighPart;
-		// printf(" LUID : LowPart %d, HighPart %ld\n", desc.AdapterLuid.LowPart, desc.AdapterLuid.HighPart);
-
-		// Look for outputs
-		IDXGIOutput* p_output = nullptr;
-
-		// Is there a first output on this adapter ?
-		if (adapter1_ptr->EnumOutputs(0, &p_output) != DXGI_ERROR_NOT_FOUND) {
-			p_output->Release();
-			// Here we can list all the outputs of the adapter
-			DXGI_OUTPUT_DESC desc_out={};
-			for (UINT32 j = 0; adapter1_ptr->EnumOutputs(j, &p_output) != DXGI_ERROR_NOT_FOUND; j++) {
-				p_output->GetDesc(&desc_out);
-				// printf("   Output : %d\n", j );
-				// printf("     Name %S\n", desc_out.DeviceName );
-				// HMONITOR hMon = desc_out.Monitor;
-				// printf("     Attached to desktop : (%d) %s\n", desc_out.AttachedToDesktop, desc_out.AttachedToDesktop ? "yes" : "no" );
-				// printf("    Rotation : %d\n", desc_out.Rotation );
-				// printf("    Left     : %d\n", desc_out.DesktopCoordinates.left );
-				// printf("    Top      : %d\n", desc_out.DesktopCoordinates.top );
-				// printf("    Right    : %d\n", desc_out.DesktopCoordinates.right );
-				// printf("    Bottom   : %d\n", desc_out.DesktopCoordinates.bottom );
-				p_output->Release();
-			}
+	for (i = 0; _dxgi_factory1->EnumAdapters1(i, &adapter1_ptr ) != DXGI_ERROR_NOT_FOUND; i++ )	{
+		if (!adapter1_ptr) {
+			// No more adapters
+			break;
 		}
-		else {
-			SpoutLogWarning("spoutDirectX::GetNumAdapters - No outputs for Adapter %d : %S", i, desc.Description);
-		}
-		*/
+		adapter1_ptr->GetDesc1(&desc);
 		adapter1_ptr->Release();
-	}
 
+		//	0x10DE	NVIDIA
+		//	0x163C	intel
+		//	0x8086  Intel
+		//	0x8087  Intel
+		//  0x1414  Microsoft
+		// printf("Adapter %d\n", i);
+		// printf("  Description [%S]\n", desc.Description);
+		// printf("  Vendor    = %d [0x%.7X]\n", desc.VendorId, desc.VendorId);
+		// printf("  Revision  = %d [0x%.7X]\n", desc.Revision, desc.Revision);
+		// printf("  Device ID = %d [0x%.7X]\n", desc.DeviceId, desc.DeviceId);
+		// printf("  SubSys ID = %d [0x%.7X]\n", desc.SubSysId, desc.SubSysId);
+		
+		// Don't count the Basic Render Driver adapter
+		if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) {
+			continue;
+		}
+		nAdapters++;
+	}
 	_dxgi_factory1->Release();
 
-	return i;
+	return nAdapters;
 
 }
 
@@ -1343,27 +1332,6 @@ bool spoutDirectX::GetAdapterInfo(int index, char* adaptername, char* output, in
 			adapter1_ptr->Release();
 		}
 
-		/*
-		TODO
-		// Find the desktop output
-		IDXGIOutput* p_output = nullptr;
-		for ( UINT32 j = 0; adapter1_ptr->EnumOutputs( j, &p_output ) != DXGI_ERROR_NOT_FOUND; j++ ) {
-			printf("    Output %d\n", j);
-			DXGI_OUTPUT_DESC desc_out;
-			if (p_output) {
-				p_output->GetDesc(&desc_out);
-				wcstombs_s(&charsConverted, display, maxBytes, desc_out.DeviceName, maxBytes - 1);
-				printf("    Device name [%s]\n", display);
-				if (desc_out.AttachedToDesktop)
-					wcstombs_s(&charsConverted, display, maxBytes, desc_out.DeviceName, maxBytes - 1);
-				p_output->Release();
-			}
-			else {
-				printf("    No output\n");
-			}
-		}
-		*/
-
 	}
 	_dxgi_factory1->Release();
 	return true;
@@ -1397,18 +1365,6 @@ IDXGIAdapter* spoutDirectX::GetAdapterPointer(int index)
 	for (int i = 0; _dxgi_factory1->EnumAdapters(i, &adapter1_ptr) != DXGI_ERROR_NOT_FOUND; i++) {
 		if (!adapter1_ptr) break;
 		if (adapterindex == i) {
-			/*
-			// TODO : Removed pending testing
-			// Now we have the requested adapter (17-03-18) test for an output on the adapter
-			IDXGIOutput* p_output = nullptr;
-			if (adapter1_ptr->EnumOutputs(0, &p_output) == DXGI_ERROR_NOT_FOUND) {
-				SpoutLogError("spoutDirectX::GetAdapterPointer(%d) :  No outputs", i);
-				adapter1_ptr->Release();
-				_dxgi_factory1->Release();
-				return nullptr;
-			}
-			p_output->Release();
-			*/
 			_dxgi_factory1->Release();
 			return adapter1_ptr;
 		}
@@ -1686,8 +1642,10 @@ bool spoutDirectX::SetPerformancePreference(int preference, const char* path)
 //
 bool spoutDirectX::GetPreferredAdapterName(int preference, char* adaptername, int maxchars)
 {
-	if (!adaptername)
+	if (!adaptername) {
+		SpoutLogWarning("spoutDirectX::GetPreferredAdapterName : NULL adapter name");
 		return false;
+	}
 
 	// preference : -1, 0, 1, 2
 	// Unregistered (-1) use GetAdapterName 
@@ -1705,7 +1663,6 @@ bool spoutDirectX::GetPreferredAdapterName(int preference, char* adaptername, in
 	else
 		SpoutLogNotice("spoutDirectX::GetPreferredAdapterName - unspecified");
 
-
 	IDXGIFactory2* pFactory = nullptr;
 	if (FAILED(CreateDXGIFactory1(__uuidof(IDXGIFactory2), (void**)&pFactory))) {
 		SpoutLogError("spoutDirectX::GetPreferredAdapterName - Could not create CreateDXGIFactory1");
@@ -1717,7 +1674,10 @@ bool spoutDirectX::GetPreferredAdapterName(int preference, char* adaptername, in
 	IDXGIFactory6* pFactory6 = nullptr;
 	IDXGIAdapter1* pAdapter1 = nullptr;
 	if (SUCCEEDED(pFactory->QueryInterface(IID_PPV_ARGS(&pFactory6)))) {
-		if (!pFactory6) return false;
+		if (!pFactory6) {
+			SpoutLogError("spoutDirectX::GetPreferredAdapterName - Could not QueryInterface pFactory6");
+			return false;
+		}
 		size_t charsConverted = 0;
 		const size_t maxBytes = static_cast<size_t>(maxchars);
 
@@ -1725,6 +1685,7 @@ bool spoutDirectX::GetPreferredAdapterName(int preference, char* adaptername, in
 		if (pFactory6->EnumAdapterByGpuPreference(0, static_cast<DXGI_GPU_PREFERENCE>(preference), IID_PPV_ARGS(&pAdapter1)) != DXGI_ERROR_NOT_FOUND) {
 			if (!pAdapter1) {
 				pFactory6->Release();
+				SpoutLogError("spoutDirectX::GetPreferredAdapterName - Could not Enumerate adapters");
 				return false;
 			}
 			DXGI_ADAPTER_DESC1 desc;
@@ -1855,9 +1816,8 @@ void spoutDirectX::DebugLog(ID3D11Device* pd3dDevice, const char* format, ...)
 #pragma warning(default:26485)
 
 
-/*
 // REMOVE THIS COMMENT LINE TO ENABLE SDK LAYERS
-
+/*
 #ifdef _DEBUG
 
 	// New line
@@ -1892,8 +1852,8 @@ void spoutDirectX::DebugLog(ID3D11Device* pd3dDevice, const char* format, ...)
 
 #endif
 
-*/ 
 // REMOVE THIS COMMENT LINE TO ENABLE SDK LAYERS
-
+*/
 
 }
+
