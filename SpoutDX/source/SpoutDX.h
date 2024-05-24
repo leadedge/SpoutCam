@@ -1,5 +1,6 @@
 /*
 
+
 			SpoutDX.h
 
 			Sender and receiver for DirectX applications

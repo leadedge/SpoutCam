@@ -1,4 +1,5 @@
 ﻿//
+//
 //		SpoutFrameCount
 //
 //		Semaphore frame counter

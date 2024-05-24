@@ -2,6 +2,7 @@
 //
 //			spoutDirectX.cpp
 //
+//
 //		Functions to manage DirectX11 texture sharing
 //
 // ====================================================================================

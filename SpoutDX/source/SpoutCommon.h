@@ -8,6 +8,7 @@
 // Optional _#define legacyOpenGL_ to enable legacy draw functions
 //
 
+
 /*
 		Thanks and credit to Malcolm Bechard, the author of this file
 		https://github.com/mbechard

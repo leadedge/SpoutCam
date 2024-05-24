@@ -309,9 +309,9 @@
 	30.12.23   Rebuild x86/x64 VS2022/MT for release
 			   Version 2.031
 	09.01.24   SpoutDX::ReadPixelData wait for command completion using FlushWait
-			   Version 2.032
 	23.05.24   SpoutDX::ReadPixelData - RGBA and BGRA texture data to BGR pixels default, RGB for swap
-			   Version 2.033
+	24.04.24   Rebuild x86/x64 VS2022/MT for release
+			   Version 2.032
 
 */
 
@@ -342,7 +342,7 @@ CUnknown * WINAPI CVCam::CreateInstance(LPUNKNOWN lpunk, HRESULT *phr)
 	// Console window
 	// OpenSpoutConsole(); // Empty console
 	// EnableSpoutLog(); // Show error logs
-	// EnableSpoutLogFile("SpoutCamDX_2023");
+	// EnableSpoutLogFile("SpoutCamDX_2022");
 	// SpoutLog("SpoutCamDX ~ Vers 2.032\n");
 
 	// For clear options dialog for scaled display
@@ -702,6 +702,7 @@ void CVCamStream::SetFps(DWORD dwFps)
 
 void CVCamStream::SetResolution(DWORD dwResolution)
 {
+
 	switch(dwResolution) {
 
 		//<==================== VS-START ====================>
@@ -716,6 +717,7 @@ void CVCamStream::SetResolution(DWORD dwResolution)
 					unsigned int width, height;
 					HANDLE sharehandle;
 					DWORD format;
+
 					if (receiver.GetSenderInfo(g_SenderName, width, height, sharehandle, format))
 					{
 						// If not fixed to the a selected resolution, use the sender width and height

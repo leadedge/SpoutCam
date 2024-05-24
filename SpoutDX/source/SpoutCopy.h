@@ -1,5 +1,6 @@
 /*
 
+
 					SpoutCopy.h
 
 		Functions to manage pixel buffer copying

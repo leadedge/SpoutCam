@@ -1,4 +1,5 @@
 ﻿//
+//
 //			SpoutDX
 //
 //		Sender and receiver for DirectX applications
