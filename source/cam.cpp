@@ -311,6 +311,7 @@
 	09.01.24   SpoutDX::ReadPixelData wait for command completion using FlushWait
 	23.05.24   SpoutDX::ReadPixelData - RGBA and BGRA texture data to BGR pixels default, RGB for swap
 	24.04.24   Rebuild x86/x64 VS2022/MT for release
+	25.05.24   Use SpoutDX SetMirror and SetSwap instead of globals directly
 			   Version 2.032
 
 */
@@ -552,8 +553,8 @@ HRESULT CVCamStream::put_Settings(DWORD dwFps, DWORD dwResolution, DWORD dwMirro
 	receiver.SetReceiverName(name);
 
 	// Mirror and swap
-	receiver.m_bMirror = (dwMirror > 0);
-	receiver.m_bSwapRB = (dwSwap > 0);
+	receiver.SetMirror(dwMirror > 0);
+	receiver.SetSwap(dwSwap > 0);
 
 	// Flip is true by default - so false will appear inverted
 	bInvert = !(dwFlip > 0);

@@ -1,5 +1,4 @@
 ﻿//
-//
 //			SpoutDX
 //
 //		Sender and receiver for DirectX applications
@@ -153,6 +152,8 @@
 //		22.05.24	  CheckSpoutPanel - Register sender only if not already registered
 //		23.05.24	- ReadPixelData/ReadTexurePixels - use global m_bSwapRB flag instead of false
 //					  ReadPixelData - RGBA and BGRA texture data to BGR pixels default, RGB for swap
+//		25.05.24	- SetSenderName - remove name increment
+//					  Add SetMirror/SetSwap/GetMirror/GetSwap for SpoutCam instead of using globals directly
 //
 // ====================================================================================
 /*
@@ -379,21 +380,6 @@ bool spoutDX::SetSenderName(const char* sendername)
 	}
 	else {
 		strcpy_s(m_SenderName, 256, sendername);
-	}
-
-	// If a sender with this name is already registered,
-	// create an incremented name, because this function
-	// precedes SpoutSenderNames::RegisterSenderName
-	char name[256]{};
-	strcpy_s(name, 256, m_SenderName);
-	if (sendernames.FindSenderName(name)) {
-		int i = 1;
-		do {
-			sprintf_s(name, 256, "%s_%d", m_SenderName, i);
-			i++;
-		} while (sendernames.FindSenderName(name));
-		// Re-set the global sender name
-		strcpy_s(m_SenderName, 256, name);
 	}
 
 	// Remove the sender from the names list if it's
@@ -1874,6 +1860,43 @@ int spoutDX::GetMemoryBufferSize(const char *name)
 }
 
 //
+// Options used for SpoutCam
+//
+
+//---------------------------------------------------------
+// Function: SetMirror
+// Set mirror image option
+void spoutDX::SetMirror(bool bMirror)
+{
+	m_bMirror = bMirror;
+}
+
+//---------------------------------------------------------
+// Function: SetSwap
+// Set swap red/blue option : RGB <> BGR
+void spoutDX::SetSwap(bool bSwap)
+{
+	m_bSwapRB = bSwap;
+}
+
+//---------------------------------------------------------
+// Function: GetMirror
+// Return mirror option
+bool spoutDX::GetMirror()
+{
+	return m_bMirror;
+}
+
+//---------------------------------------------------------
+// Function: GetSwap
+// Return swap option
+bool spoutDX::GetSwap()
+{
+	return m_bSwapRB;
+}
+
+
+//
 // Sharing modes
 //
 
@@ -2076,6 +2099,8 @@ bool spoutDX::CheckSender(unsigned int width, unsigned int height, DWORD dwForma
 
 		// Create a sender using the DX11 shared texture handle (m_dxShareHandle)
 		// and specifying the same texture format.
+		// If the sender already exists, the name is incremented
+		// name, name_1, name_2 etc
 		if (sendernames.CreateSender(m_SenderName, m_Width, m_Height, m_dxShareHandle, m_dwFormat)) {
 
 			// sendernames::SetSenderInfo writes the sender information to shared memory
