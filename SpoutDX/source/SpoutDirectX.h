@@ -1,6 +1,5 @@
 /*
 
-
 	spoutDirectX.h
 
 	Functions to manage DirectX 11 texture sharing

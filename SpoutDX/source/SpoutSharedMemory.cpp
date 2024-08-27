@@ -1,6 +1,5 @@
 /**
 
-
 	http://www.codeproject.com/Articles/835818/Ultimate-Shared-Memory-A-flexible-class-for-interp
 
 	SpoutSharedMemory.cpp
@@ -53,6 +52,7 @@
 //	Version 2.007.012
 //	07.12.23 - Remove unused <d3d9.h> from header
 //	Version 2.007.013
+//	Version 2.007.014
 //
 // ====================================================================================
 

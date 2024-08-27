@@ -1,6 +1,5 @@
 /*
 
-
 					SpoutCopy.h
 
 		Functions to manage pixel buffer copying
@@ -69,6 +68,10 @@ class SPOUT_DLLEXP spoutCopy {
 		void RemovePadding(const unsigned char* source, unsigned char* dest,
 			unsigned int width, unsigned int height,
 			unsigned int source_stride, GLenum glFormat) const;
+
+		// Clear alpha of rgba image pixels to the required value
+		void ClearAlpha(unsigned char* src,	unsigned int width,
+			unsigned int height, unsigned char alpha) const;
 
 		// SSE2 version of memcpy
 		void memcpy_sse2(void* dst, const void* src, size_t size) const;
@@ -199,8 +202,6 @@ class SPOUT_DLLEXP spoutCopy {
 		
 		// Copy BGRA to BGR
 		void bgra2bgr (const void* bgra_source, void *bgr_dest,  unsigned int width, unsigned int height, bool bInvert = false) const;
-
-
 
 	protected :
 

@@ -313,6 +313,9 @@
 	24.04.24   Rebuild x86/x64 VS2022/MT for release
 	25.05.24   Use SpoutDX SetMirror and SetSwap instead of globals directly
 			   Version 2.032
+	27.08.24   Rebuild x86/x64 VS2022/MT with 2.007.015 SpoutDX files for release
+			   Version 2.033
+
 
 */
 
@@ -344,7 +347,7 @@ CUnknown * WINAPI CVCam::CreateInstance(LPUNKNOWN lpunk, HRESULT *phr)
 	// OpenSpoutConsole(); // Empty console
 	// EnableSpoutLog(); // Show error logs
 	// EnableSpoutLogFile("SpoutCamDX_2022");
-	// SpoutLog("SpoutCamDX ~ Vers 2.032\n");
+	// SpoutLog("SpoutCamDX ~ Vers 2.033\n");
 
 	// For clear options dialog for scaled display
 	SetProcessDPIAware();

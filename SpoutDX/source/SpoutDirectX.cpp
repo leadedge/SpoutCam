@@ -2,7 +2,6 @@
 //
 //			spoutDirectX.cpp
 //
-//
 //		Functions to manage DirectX11 texture sharing
 //
 // ====================================================================================
@@ -162,6 +161,7 @@
 //		18.02.24	- GetNumAdapters
 //					    Change adapter pointer to IDXGIAdapter1 and use EnumAdapters1
 //					    to identify and skip the Basic Render Driver adapter
+//	Version 2.007.014
 //
 // ====================================================================================
 /*
@@ -832,7 +832,6 @@ bool spoutDirectX::CreateDX11StagingTexture(ID3D11Device* pd3dDevice,
 // Retrieve the pointer of a DirectX11 shared texture
 bool spoutDirectX::OpenDX11shareHandle(ID3D11Device* pDevice, ID3D11Texture2D** ppSharedTexture, HANDLE dxShareHandle)
 {
-
 	if (!pDevice || !ppSharedTexture || !dxShareHandle) {
 		SpoutLogError("spoutDirectX::OpenDX11shareHandle - null sources");
 		return false;
@@ -873,9 +872,12 @@ bool spoutDirectX::OpenDX11shareHandle(ID3D11Device* pDevice, ID3D11Texture2D** 
 	// printf("td.MipLevels = %d\n", td.MipLevels);
 	// printf("td.Usage = %d\n", td.Usage);
 	// printf("td.ArraySize = %d\n", td.ArraySize);
-	// printf("td.SampleDesc = %d\n", td.SampleDesc);
+	// printf("td.SampleDesc Count = %d\n", td.SampleDesc.Count);
+	// printf("td.SampleDesc Quality = %d\n", td.SampleDesc.Quality);
 	// printf("td.BindFlags = %d\n", td.BindFlags);
 	// printf("td.MiscFlags = %d\n", td.MiscFlags); // D3D11_RESOURCE_MISC_SHARED (2)
+
+	SpoutLogNotice("spoutDirectX::OpenDX11shareHandle - OK");
 
 	return true;
 

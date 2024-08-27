@@ -33,28 +33,32 @@
 #define __spoutDX__
 
 //
-// Change the path as necessary
+// Include file path
 //
-// For the repository folder structure, the path prefix is "..\..\SpoutGL\"
-// If the include files are in the same folder there is no prefix.
-// If the files are in a different folder, change the prefix as required.
+// 1) If the include files are in the same folder there is no prefix.
+//    This applies for a build using SpoutDX dll or static library.
 //
-// #define PATH_PREFIX
+// 2) If the Spout source is built as a dll or static library,
+//    or an application is built using the repository folder structure
+//    the path prefix for include files is "..\..\SpoutGL\"
+//
+// 3) If the include files are in a different folder, change the prefix as required.
+//
 
-#ifdef PATH_PREFIX
-#include "..\..\SpoutGL\SpoutCommon.h" // for dll build
-#include "..\..\SpoutGL\SpoutSenderNames.h" // for sender creation and update
-#include "..\..\SpoutGL\SpoutDirectX.h" // for creating DX11 textures
-#include "..\..\SpoutGL\SpoutFrameCount.h" // for mutex lock and new frame signal
-#include "..\..\SpoutGL\SpoutCopy.h" // for pixel copy
-#include "..\..\SpoutGL\SpoutUtils.h" // Registry utiities
+#if __has_include("SpoutCommon.h")
+#include "SpoutCommon.h" // include files in the same folder
+#include "SpoutDirectX.h"
+#include "SpoutSenderNames.h"
+#include "SpoutFrameCount.h"
+#include "SpoutCopy.h"
+#include "SpoutUtils.h"
 #else
-#include "SpoutCommon.h" // for dll build
-#include "SpoutSenderNames.h" // for sender creation and update
-#include "SpoutDirectX.h" // for creating DX11 textures
-#include "SpoutFrameCount.h" // for mutex lock and new frame signal
-#include "SpoutCopy.h" // for pixel copy
-#include "SpoutUtils.h" // Registry utiities
+#include "..\..\SpoutGL\SpoutCommon.h" // repository folder structure
+#include "..\..\SpoutGL\SpoutDirectX.h"
+#include "..\..\SpoutGL\SpoutSenderNames.h"
+#include "..\..\SpoutGL\SpoutFrameCount.h"
+#include "..\..\SpoutGL\SpoutCopy.h"
+#include "..\..\SpoutGL\SpoutUtils.h"
 #endif
 
 #include <direct.h> // for _getcwd
@@ -130,9 +134,8 @@ class SPOUT_DLLEXP spoutDX {
 	// Read pixels from texture
 	bool ReadTexurePixels(ID3D11Texture2D* ppTexture, unsigned char* pixels);
 
-
 	// Open sender selection dialog
-	void SelectSender();
+	bool SelectSender(HWND hwnd = NULL);
 	// Sender has changed
 	bool IsUpdated();
 	// Connected to a sender
@@ -180,6 +183,10 @@ class SPOUT_DLLEXP spoutDX {
 	int  GetSenderCount();
 	// Get sender name for a given index
 	bool GetSender(int index, char* sendername, int MaxSize = 256);
+	// Return a list of current senders
+	std::vector<std::string> GetSenderList();
+	// Sender index into the set of names
+	int GetSenderIndex(const char* sendername);
 	// Get sender details
 	bool GetSenderInfo(const char* sendername, unsigned int &width, unsigned int &height, HANDLE &dxShareHandle, DWORD &dwFormat);
 	// Get active sender name
@@ -275,6 +282,10 @@ class SPOUT_DLLEXP spoutDX {
 	int SpoutMessageBox(const char* message, DWORD dwMilliseconds = 0);
 	int SpoutMessageBox(const char* caption, UINT uType, const char* format, ...);
 	int SpoutMessageBox(HWND hwnd, LPCSTR message, LPCSTR caption, UINT uType, DWORD dwMilliseconds = 0);
+	int SpoutMessageBox(HWND hwnd, LPCSTR message, LPCSTR caption, UINT uType, const char* instruction, DWORD dwMilliseconds = 0);
+	int SpoutMessageBox(HWND hwnd, LPCSTR message, LPCSTR caption, UINT uType, std::string& text);
+	int SpoutMessageBox(HWND hwnd, LPCSTR message, LPCSTR caption, UINT uType, std::vector<std::string> items, int& selected);
+
 
 	//
 	// Data sharing
@@ -343,7 +354,6 @@ protected :
 	bool m_bSwapRB; // RGB <> BGR
 	SHELLEXECUTEINFOA m_ShExecInfo; // For ShellExecute
 
-
 	// For WriteMemoryBuffer/ReadMemoryBuffer
 	SpoutSharedMemory memorybuffer;
 
@@ -363,7 +373,7 @@ protected :
 	// Create or update class texture
 	bool CheckTexture(unsigned int width, unsigned int height, DWORD dwFormat);
 
-	void SelectSenderPanel();
+	bool SelectSenderPanel(const char* message = nullptr);
 	bool CheckSpoutPanel(char *sendername, int maxchars = 256);
 
 };

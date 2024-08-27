@@ -1,6 +1,5 @@
 /*
 
-
 	SpoutSharedMemory.h
 	
 	Thanks and credit to Malcolm Bechard the author of this class
