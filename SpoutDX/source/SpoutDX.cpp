@@ -159,6 +159,7 @@
 //		15.07.24	- SelectSender - after cast of window handle to long 
 //					  convert to a string of 8 characters without new line
 //		28.07.24	- Change to #if __has_include("SpoutCommon.h") in Spout.h
+//		22.10.24	- SelectSender - remove message string line feed for SpoutPanel
 //
 // ====================================================================================
 /*
@@ -597,11 +598,11 @@ bool spoutDX::SendTexture(ID3D11Texture2D* pTexture,
 	return true;
 }
 
-
+// LJ DEBUG
 //---------------------------------------------------------
 // Function: SendImage
 // Send pixel image
-bool spoutDX::SendImage(const unsigned char * pData, unsigned int width, unsigned int height)
+bool spoutDX::SendImage(const unsigned char * pData, unsigned int width, unsigned int height, unsigned int pitch)
 {
 	// Quit if no data
 	if (!pData)
@@ -611,10 +612,18 @@ bool spoutDX::SendImage(const unsigned char * pData, unsigned int width, unsigne
 	if (!CheckSender(width, height, m_dwFormat))
 		return false;
 
+	// LJ DEBUG
+	// Line length
+	unsigned int rowpitch = width*4;
+	if(pitch > 0)
+		rowpitch = pitch;
+
 	// Check the sender mutex for access the shared texture
 	if (frame.CheckTextureAccess(m_pSharedTexture)) {
 		// Update the shared texture resource with the pixel buffer
-		m_pImmediateContext->UpdateSubresource(m_pSharedTexture, 0, NULL, pData, m_Width*4, 0);
+		// LJ DEBUG
+		// m_pImmediateContext->UpdateSubresource(m_pSharedTexture, 0, NULL, pData, m_Width*4, 0);
+		m_pImmediateContext->UpdateSubresource(m_pSharedTexture, 0, NULL, pData, rowpitch, 0);
 		// Flush the command queue because the shared texture has been updated on this device
 		m_pImmediateContext->Flush();
 		// Signal a new frame while the mutex is locked
@@ -1032,7 +1041,7 @@ bool spoutDX::SelectSender(HWND hwnd)
 		// Window handle is an 32 bit unsigned value
 		// Cast to long of 8 characters without new line
 		msg = new char[256];
-		sprintf_s(msg, 256, "%8.8ld\n", HandleToLong(hwnd));
+		sprintf_s(msg, 256, "%8.8ld", HandleToLong(hwnd));
 	}
 
 	if (!SelectSenderPanel(msg)) {
@@ -2670,7 +2679,7 @@ bool spoutDX::SelectSenderPanel(const char* message)
 	}
 	else {
 		// Send the receiver graphics adapter index by default
-		strcpy_s(UserMessage, MAX_PATH, std::to_string(GetAdapter()).c_str());
+		strcpy_s(UserMessage, 512, std::to_string(GetAdapter()).c_str());
 	}
 
 	// The selected sender is then the "Active" sender and this receiver switches to it.

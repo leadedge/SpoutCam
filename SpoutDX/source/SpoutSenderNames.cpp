@@ -109,11 +109,11 @@
 	22.05.24 - RegisterSenderName add newname condition for name increment
 	Version 2.007.014
 	20.06.24 - Add GetSenderIndex
-	23.08.24 - GetSenderInfor, SetSenderID - initialize SharedTextureInfo
+	23.08.24 - GetSenderInfo, SetSenderID - initialize SharedTextureInfo
 
 
 	- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-	Copyright (c) 2014-2024, Lynn Jarvis. All rights reserved.
+	Copyright (c) 2014-2025, Lynn Jarvis. All rights reserved.
 
 	Redistribution and use in source and binary forms, with or without modification, 
 	are permitted provided that the following conditions are met:

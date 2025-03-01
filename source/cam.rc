@@ -14,12 +14,12 @@ FILETYPE 0x2
 		{
 			VALUE "CompanyName", "Leading Edge Pty Ltd\0"
 			VALUE "FileDescription", "SpoutCam virtual webcam\0"
-			VALUE "FileVersion", "2.027\0"
+			VALUE "FileVersion", "2.034\0"
 			VALUE "InternalName", "SpoutCam.ax"
-			VALUE "LegalCopyright", "Copyright \251 Lynn Jarvis 2022\0"
+			VALUE "LegalCopyright", "Copyright \251 Lynn Jarvis 2022-2025\0"
 			VALUE "OriginalFilename", "SpoutCam.ax\0"
 			VALUE "ProductName", "SpoutCam\0"
-			VALUE "ProductVersion", "2.027\0"
+			VALUE "ProductVersion", "2.034\0"
 		}
 	}
 

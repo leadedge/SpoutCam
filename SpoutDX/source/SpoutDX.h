@@ -101,9 +101,15 @@ class SPOUT_DLLEXP spoutDX {
 	// Send part of a texture
 	bool SendTexture(ID3D11Texture2D* pTexture,
 		unsigned int xoffset, unsigned int yoffset,
-		unsigned int width, unsigned int height); 
+		unsigned int width, unsigned int height);
+
+	// LJ DEBUG
 	// Send an image
-	bool SendImage(const unsigned char * pData, unsigned int width, unsigned int height);
+	bool SendImage(const unsigned char * pData, unsigned int width, unsigned int height, unsigned int pitch = 0);
+
+	// Send an image
+	// bool SendImage(const unsigned char * pData, unsigned int width, unsigned int height);
+
 	// Sender status
 	bool IsInitialized();
 	// Sender name

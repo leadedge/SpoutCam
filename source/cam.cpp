@@ -12,7 +12,7 @@
 	after the filter has been loaded. If there is no Sender, 
 	the default is 640x480 with a noise image
 
-	Copyright 2013-2024 Lynn Jarvis - spout@zeal.co
+	Copyright 2013-2025 Lynn Jarvis - spout@zeal.co
 
 	"SpoutCam" is free software: 
 	you can redistribute it and/or modify it under the terms of the GNU
@@ -315,6 +315,10 @@
 			   Version 2.032
 	27.08.24   Rebuild x86/x64 VS2022/MT with 2.007.015 SpoutDX files for release
 			   Version 2.033
+	01.03.25   Rebuild with revised SpoutGL.
+			   Update version number in cam.rc to 2.034
+			   Test with revised SpoutCamSettings - dialog version
+			   Version 2.034
 
 
 */
@@ -347,7 +351,7 @@ CUnknown * WINAPI CVCam::CreateInstance(LPUNKNOWN lpunk, HRESULT *phr)
 	// OpenSpoutConsole(); // Empty console
 	// EnableSpoutLog(); // Show error logs
 	// EnableSpoutLogFile("SpoutCamDX_2022");
-	// SpoutLog("SpoutCamDX ~ Vers 2.033\n");
+	// SpoutLog("SpoutCamDX ~ Vers 2.034\n");
 
 	// For clear options dialog for scaled display
 	SetProcessDPIAware();
@@ -583,6 +587,30 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 	g_ActiveSender[0] = 0;
 	g_SenderStart[0] = 0;
 
+	
+	/*
+	// Testing
+	OpenSpoutConsole();
+	// Get filter preference
+	char filename[MAX_PATH]{};
+	GetModuleFileNameA(g_hInst, filename, MAX_PATH);
+	printf("%s\n", filename);
+	int pref = receiver.GetPerformancePreference(filename);
+	printf("filter preference = %d\n", pref);
+
+	// Get application preference
+	GetModuleFileNameA(NULL, filename, MAX_PATH);
+	printf("%s\n", filename);
+	pref = receiver.GetPerformancePreference(filename);
+	printf("application preference = %d\n", pref);
+
+	// Adapter in use
+	int index = receiver.GetAdapter();
+	receiver.GetAdapterName(index, filename, MAX_PATH);
+	printf("Adapter in use (%d) [%s]\n", index, filename);
+	*/
+
+
 	// Maximum precision of timeGetTime used in FillBuffer
 	timeGetDevCaps(&g_caps, sizeof(g_caps));
 	timeBeginPeriod(g_caps.wPeriodMin);
@@ -656,6 +684,15 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 	//
 	g_SenderStart[0] = 0;
 	ReadPathFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "senderstart", g_SenderStart);
+
+	/*
+	printf("dwFps        = %d\n", dwFps);
+	printf("dwResolution = %d\n", dwResolution);
+	printf("dwMirror     = %d\n", dwMirror);
+	printf("dwFlip       = %d\n", dwFlip);
+	printf("dwSwap       = %d\n", dwSwap);
+	printf("senderstart  [%s]\n", g_SenderStart);
+	*/
 
 	//<==================== VS-START ====================>
 	// Now always the new function put_Settings is called, which in turn calls
