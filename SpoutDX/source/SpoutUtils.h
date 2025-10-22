@@ -36,7 +36,7 @@
 
 // Enable this define to use independently of Spout source files
 // See also the stand alone define in SpoutGLextensions
-#define standaloneUtils
+// #define standaloneUtils
 
 #ifdef standaloneUtils
 #define SPOUT_DLLEXP
@@ -58,6 +58,7 @@
 #include <Shellapi.h> // for shellexecute
 #include <Commctrl.h> // For TaskDialogIndirect
 #include <math.h> // for round
+#include <algorithm> // for string character remove
 
 //
 // C++11 timer is only available for MS Visual Studio 2015 and above.
@@ -140,11 +141,11 @@ namespace spoututils {
 	// Get executable or dll name
 	std::string SPOUT_DLLEXP GetExeName();
 
-	// Remove path and return the file name
-	void SPOUT_DLLEXP RemovePath(std::string& path);
-
 	// Remove file name and return the path
-	void SPOUT_DLLEXP RemoveName(std::string& path);
+	std::string SPOUT_DLLEXP GetPath(std::string fullpath);
+
+	// Remove path and return the file name
+	std::string SPOUT_DLLEXP GetName(std::string fullpath);
 
 	//
 	// Console management
@@ -271,7 +272,8 @@ namespace spoututils {
 	// MessageBox dialog with a combobox control for item selection
 	// Can be used in place of a specific application resource dialog
 	// Properties the same as the edit control
-	int SPOUT_DLLEXP SpoutMessageBox(HWND hwnd, LPCSTR message, LPCSTR caption, UINT uType, std::vector<std::string> items, int &selected);
+	int SPOUT_DLLEXP SpoutMessageBox(HWND hwnd, LPCSTR message, LPCSTR caption, UINT uType,
+		std::vector<std::string> items, int &selected);
 
 	// Custom icon for SpoutMessageBox from resources
 	void SPOUT_DLLEXP SpoutMessageBoxIcon(HICON hIcon);
@@ -341,7 +343,7 @@ namespace spoututils {
 	// Stop timing and return milliseconds or microseconds elapsed.
 	// (microseconds default).
 	// Code console output can be enabled for quick timing tests.
-	double SPOUT_DLLEXP EndTiming(bool microseconds = false);
+	double SPOUT_DLLEXP EndTiming(bool microseconds = false, bool bPrint = false);
 	// Microseconds elapsed since epoch
 	double SPOUT_DLLEXP ElapsedMicroseconds();
 #else
@@ -378,6 +380,8 @@ namespace spoututils {
 		bool OpenSpoutPanel(const char* message);
 		// Application window
 		HWND hwndMain = NULL;
+		// Taskdialog window to prevent multiple open
+		HWND hwndTask = NULL;
 		// Position for TaskDialog window centre
 		POINT TDcentre = {};
 		// For topmost

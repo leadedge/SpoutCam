@@ -4,7 +4,7 @@
 
 			Sender and receiver for DirectX applications
 
-	Copyright (c) 2014-2024 Lynn Jarvis. All rights reserved.
+	Copyright (c) 2014-2025 Lynn Jarvis. All rights reserved.
 
 	Redistribution and use in source and binary forms, with or without modification, 
 	are permitted provided that the following conditions are met:
@@ -50,22 +50,25 @@
 #include "SpoutDirectX.h"
 #include "SpoutSenderNames.h"
 #include "SpoutFrameCount.h"
+#include "SpoutDirectX.h"
 #include "SpoutCopy.h"
 #include "SpoutUtils.h"
 #else
-#include "..\..\SpoutGL\SpoutCommon.h" // repository folder structure
-#include "..\..\SpoutGL\SpoutDirectX.h"
-#include "..\..\SpoutGL\SpoutSenderNames.h"
-#include "..\..\SpoutGL\SpoutFrameCount.h"
-#include "..\..\SpoutGL\SpoutCopy.h"
-#include "..\..\SpoutGL\SpoutUtils.h"
+#include "..\SpoutSDK\SpoutCommon.h"
+#include "..\SpoutSDK\SpoutSenderNames.h"
+#include "..\SpoutSDK\SpoutFrameCount.h"
+#include "..\SpoutSDK\SpoutDirectX.h"
+#include "..\SpoutSDK\SpoutCopy.h"
+#include "..\SpoutSDK\SpoutUtils.h"
 #endif
 
-#include <direct.h> // for _getcwd
-#include <TlHelp32.h> // for PROCESSENTRY32
-#include <tchar.h> // for _tcsicmp
-#include <psapi.h> // for GetModuleFileNameExA
+#include <direct.h>      // for _getcwd
+#include <TlHelp32.h>    // for PROCESSENTRY32
+#include <tchar.h>       // for _tcsicmp
+#include <psapi.h>       // for GetModuleFileNameExA
+
 #pragma comment(lib, "Psapi.lib")
+#pragma comment(lib, "d3dcompiler.lib")
 
 class SPOUT_DLLEXP spoutDX {
 
@@ -102,14 +105,8 @@ class SPOUT_DLLEXP spoutDX {
 	bool SendTexture(ID3D11Texture2D* pTexture,
 		unsigned int xoffset, unsigned int yoffset,
 		unsigned int width, unsigned int height);
-
-	// LJ DEBUG
-	// Send an image
+	// Send an image - optional row pitch
 	bool SendImage(const unsigned char * pData, unsigned int width, unsigned int height, unsigned int pitch = 0);
-
-	// Send an image
-	// bool SendImage(const unsigned char * pData, unsigned int width, unsigned int height);
-
 	// Sender status
 	bool IsInitialized();
 	// Sender name
@@ -139,7 +136,6 @@ class SPOUT_DLLEXP spoutDX {
 	bool ReceiveImage(unsigned char * pixels, unsigned int width, unsigned int height, bool bRGB = false, bool bInvert = false);
 	// Read pixels from texture
 	bool ReadTexurePixels(ID3D11Texture2D* ppTexture, unsigned char* pixels);
-
 	// Open sender selection dialog
 	bool SelectSender(HWND hwnd = NULL);
 	// Sender has changed
@@ -292,7 +288,6 @@ class SPOUT_DLLEXP spoutDX {
 	int SpoutMessageBox(HWND hwnd, LPCSTR message, LPCSTR caption, UINT uType, std::string& text);
 	int SpoutMessageBox(HWND hwnd, LPCSTR message, LPCSTR caption, UINT uType, std::vector<std::string> items, int& selected);
 
-
 	//
 	// Data sharing
 	//
@@ -311,15 +306,9 @@ class SPOUT_DLLEXP spoutDX {
 	//
 	// Options used for SpoutCam
 	//
-
-	// Mirror image
-	void SetMirror(bool bMirror = true);
-
-	// RGB <> BGR
-	void SetSwap(bool bSwap = true);
-
+	void SetMirror(bool bMirror = true); // Mirror image
+	void SetSwap(bool bSwap = true); // RGB <> BGR
 	bool GetMirror();
-
 	bool GetSwap();
 
 	//
@@ -330,43 +319,55 @@ class SPOUT_DLLEXP spoutDX {
 	spoutFrameCount frame;
 	spoutDirectX spoutdx;
 	spoutCopy spoutcopy;
+#ifdef __spoutDXshaders__
+	spoutDXshaders shaders;
+#endif
 
 protected :
 
-	ID3D11Device* m_pd3dDevice;
-	ID3D11DeviceContext* m_pImmediateContext;
-	ID3D11Texture2D* m_pSharedTexture;
-	ID3D11Texture2D* m_pTexture;
-	ID3D11Texture2D* m_pStaging[2];
-	int m_Index;
-	int m_NextIndex;
+	ID3D11Device* m_pd3dDevice = nullptr;
+	ID3D11DeviceContext* m_pImmediateContext = nullptr;
+	ID3D11Texture2D* m_pSharedTexture = nullptr; // Sender shared texture
+	ID3D11Texture2D* m_pTexture = nullptr; // Class receiving texture
+	ID3D11Texture2D* m_pStaging[2] = {nullptr};
+	int m_Index = 0;
+	int m_NextIndex = 0;
+	HANDLE m_dxShareHandle = nullptr;
+	DWORD m_dwFormat = 0; // Global texture format
+	DWORD m_dwSenderFormat = 0; // Sender shared texture format
 
-	HANDLE m_dxShareHandle;
-	DWORD m_dwFormat;
-	SharedTextureInfo m_SenderInfo;
-	char m_SenderNameSetup[256];
-	char m_SenderName[256];
-	unsigned int m_Width;
-	unsigned int m_Height;
-	bool m_bUpdated;
-	bool m_bConnected;
-	bool m_bSpoutInitialized;
-	bool m_bSpoutPanelOpened;
-	bool m_bSpoutPanelActive;
-	bool m_bClassDevice;
-	bool m_bAdapt;
-	bool m_bMemoryShare; // Using 2.006 memoryshare methods
-	bool m_bMirror; // Mirror image
-	bool m_bSwapRB; // RGB <> BGR
-	SHELLEXECUTEINFOA m_ShExecInfo; // For ShellExecute
+	SharedTextureInfo m_SenderInfo{};
+	char m_SenderNameSetup[256]{};
+	char m_SenderName[256]{};
+	unsigned int m_Width = 0;
+	unsigned int m_Height = 0;
+	bool m_bUpdated = false;
+	bool m_bConnected = false;
+	bool m_bSpoutInitialized = false;
+	bool m_bSpoutPanelOpened = false;
+	bool m_bSpoutPanelActive = false;
+	bool m_bClassDevice = true;
+	bool m_bAdapt = false;
+	bool m_bMemoryShare = false; // Using 2.006 memoryshare methods
+	bool m_bMirror = false; // Mirror image
+	bool m_bSwapRB = false; // RGB <> BGR
+	SHELLEXECUTEINFOA m_ShExecInfo{}; // For ShellExecute
 
 	// For WriteMemoryBuffer/ReadMemoryBuffer
 	SpoutSharedMemory memorybuffer;
-
+	bool bCopyRgb = true; // Copy to R8 byte texture for SpoutCam
+	double timingAvg = 0.0;
+	double timingSum = 0.0;
+	double timingNum = 0.0;
+	// Initialize or update the sender
 	bool CheckSender(unsigned int width, unsigned int height, DWORD dwFormat);
+
+	// Initialize or update the sender texture
 	ID3D11Texture2D* CheckSenderTexture(char *sendername, HANDLE dxShareHandle);
 
+	// Read sender shared memory and update texture details
 	bool ReceiveSenderData();
+
 	void CreateReceiver(const char * sendername, unsigned int width, unsigned int height, DWORD dwFormat);
 	
 	// Read pixels from a staging texture
@@ -379,8 +380,10 @@ protected :
 	// Create or update class texture
 	bool CheckTexture(unsigned int width, unsigned int height, DWORD dwFormat);
 
+	// Select sender
 	bool SelectSenderPanel(const char* message = nullptr);
 	bool CheckSpoutPanel(char *sendername, int maxchars = 256);
+
 
 };
 
