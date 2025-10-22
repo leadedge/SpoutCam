@@ -9,7 +9,7 @@
 #define _VER_MAJORVERSION_STRING L"2"
 
 #define _VER_MINORVERSION 1
-#define _VER_MINORVERSION_STRING L"033"     
+#define _VER_MINORVERSION_STRING L"035"     
 														
 #define _VER_BUGFIXVERSION 0
 #define _VER_BUGFIXVERSION_STRING L"0"
@@ -27,5 +27,5 @@
 #define _VER_PRODUCTNAME		L"SpoutCam"
 #define _VER_INTERNALNAME		L"SpoutCam.ax"
 
-#define _VER_COPYRIGHT L"Copyright (c) Lynn Jarvis 2013-2024"
-#define _VER_YEAR	   L"2024"
+#define _VER_COPYRIGHT L"Copyright (c) Lynn Jarvis 2013-2025"
+#define _VER_YEAR	   L"2025"

@@ -2,6 +2,13 @@
 // Copyright (C) 2006-2015
 // http://www.resedit.net
 
+// Revisions
+//
+// 27.03.25	- Make version text darker
+//			  Increase dialog font size from 8 to 10   
+//
+
+
 #include <windows.h>
 #include <commctrl.h>
 #include "resource.h"
@@ -15,7 +22,7 @@
 LANGUAGE LANG_NEUTRAL, SUBLANG_NEUTRAL
 IDD_SPOUTCAMBOX DIALOG 0, 0, 100, 175
 STYLE DS_CENTER | DS_SHELLFONT | WS_CHILD
-FONT 8, "Ms Shell Dlg"
+FONT 10, "Ms Shell Dlg"
 {
 	GROUPBOX        "Frame Rate (fps)", -1, 13, 7, 130, 32, 0, WS_EX_LEFT
 	COMBOBOX        IDC_FPS, 20, 19, 100, 100, WS_TABSTOP | CBS_DROPDOWN | CBS_HASSTRINGS, WS_EX_LEFT
@@ -31,7 +38,7 @@ FONT 8, "Ms Shell Dlg"
 	AUTOCHECKBOX    "Flip", IDC_FLIP, 57, 128, 36, 8, 0, WS_EX_LEFT
 	AUTOCHECKBOX    "Swap", IDC_SWAP, 94, 128, 30, 8, 0, WS_EX_LEFT
 
-	LTEXT           "", IDC_VERS, 15, 150, 42, 9, SS_LEFT, WS_EX_LEFT
+	LTEXT           "", IDC_VERS, 15, 150, 50, 9, SS_LEFT, WS_EX_LEFT
 	CONTROL         "", IDC_SPOUT_URL, WC_BUTTON, BS_OWNERDRAW | BS_FLAT, 65, 150, 60, 10, WS_EX_TRANSPARENT
 	AUTOCHECKBOX    "Disable warnings", IDC_SILENT, 15, 162, 65, 8, 0, WS_EX_LEFT
 

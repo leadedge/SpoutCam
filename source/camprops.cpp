@@ -47,8 +47,18 @@ INT_PTR CSpoutCamProperties::OnReceiveMessage(HWND hwnd, UINT uMsg, WPARAM wPara
 
 	switch (uMsg)
 	{
+
+		case WM_INITDIALOG:
+		{
+			// Hyperlink hand cursor
+			cursorHand = LoadCursor(NULL, IDC_HAND);
+			SetClassLongPtr(GetDlgItem(hwnd, IDC_SPOUT_URL), GCLP_HCURSOR, (LONG_PTR)cursorHand);
+		}
+		break;
+
+
 		// Owner draw button
-	case WM_CTLCOLORSTATIC:
+		case WM_CTLCOLORSTATIC:
 		{
 			HDC hdcStatic = (HDC)wParam;
 			
@@ -62,7 +72,8 @@ INT_PTR CSpoutCamProperties::OnReceiveMessage(HWND hwnd, UINT uMsg, WPARAM wPara
 
 			// Make version light grey
 			if (GetDlgItem(hwnd, IDC_VERS) == (HWND)lParam) {
-				SetTextColor(hdcStatic, RGB(128, 128, 128));
+				// SetTextColor(hdcStatic, RGB(128, 128, 128));
+				SetTextColor(hdcStatic, RGB(92, 92, 92));
 				SetBkColor(hdcStatic, RGB(240, 240, 240));
 				if (g_hbrBkgnd == NULL)
 					g_hbrBkgnd = CreateSolidBrush(RGB(240, 240, 240));
@@ -72,7 +83,7 @@ INT_PTR CSpoutCamProperties::OnReceiveMessage(HWND hwnd, UINT uMsg, WPARAM wPara
 		}
 		break;
 
-	case WM_DRAWITEM:
+		case WM_DRAWITEM:
 			lpdis = (LPDRAWITEMSTRUCT)lParam;
 			if (lpdis->itemID == -1) break;
 			switch (lpdis->CtlID) {
@@ -85,12 +96,6 @@ INT_PTR CSpoutCamProperties::OnReceiveMessage(HWND hwnd, UINT uMsg, WPARAM wPara
 				default:
 					break;
 			}
-			break;
-
-		case WM_INITDIALOG:
-			// Hyperlink hand cursor
-			cursorHand = LoadCursor(NULL, IDC_HAND);
-			SetClassLongPtr(GetDlgItem(hwnd, IDC_SPOUT_URL), GCLP_HCURSOR, (LONG_PTR)cursorHand);
 			break;
 
 		case WM_COMMAND:

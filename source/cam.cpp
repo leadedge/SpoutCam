@@ -318,8 +318,13 @@
 	01.03.25   Rebuild with revised SpoutGL.
 			   Update version number in cam.rc to 2.034
 			   Test with revised SpoutCamSettings - dialog version
-			   Version 2.034
-
+			   Version 2.034 - released with Spout 2.007.016
+	08.04.25   Update Version.h - number to 2.034, copyright and year to 2025
+			   Update comments for SendImage
+	20.07.25   Include SpoutDXshaders in SpoutDX to receive from all formats
+			   No code changes for SpoutCam
+	23.07.25   Update ReceiveImage for multiple formats with DirectX 11 compute shaders
+	20.10.25   Update Version.h - Vers 2.035 (Spout 2.007.017)
 
 */
 
@@ -351,7 +356,7 @@ CUnknown * WINAPI CVCam::CreateInstance(LPUNKNOWN lpunk, HRESULT *phr)
 	// OpenSpoutConsole(); // Empty console
 	// EnableSpoutLog(); // Show error logs
 	// EnableSpoutLogFile("SpoutCamDX_2022");
-	// SpoutLog("SpoutCamDX ~ Vers 2.034\n");
+	// SpoutLog("SpoutCamDX ~ Vers 2.035\n");
 
 	// For clear options dialog for scaled display
 	SetProcessDPIAware();
@@ -563,7 +568,8 @@ HRESULT CVCamStream::put_Settings(DWORD dwFps, DWORD dwResolution, DWORD dwMirro
 	receiver.SetMirror(dwMirror > 0);
 	receiver.SetSwap(dwSwap > 0);
 
-	// Flip is true by default - so false will appear inverted
+	// Flip is true by default for windows bitmap
+	// so false will appear inverted
 	bInvert = !(dwFlip > 0);
 
 	return GetMediaType(0, &m_mt);
@@ -587,7 +593,6 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 	g_ActiveSender[0] = 0;
 	g_SenderStart[0] = 0;
 
-	
 	/*
 	// Testing
 	OpenSpoutConsole();
@@ -858,18 +863,17 @@ HRESULT CVCamStream::QueryInterface(REFIID riid, void **ppv)
 //  http://comSender.googlecode.com/svn/trunk/
 //
 //////////////////////////////////////////////////////////////////////////
-HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
-{
+HRESULT CVCamStream::FillBuffer(IMediaSample * pms) {
 	unsigned int imagesize, width, height = 0U;
 	long l, lDataLen = 0L;
 	bool bResult = false;
 	HRESULT hr = S_OK;
-    BYTE *pData = nullptr;
+	BYTE * pData = nullptr;
 
-	VIDEOINFOHEADER *pvi = (VIDEOINFOHEADER *)m_mt.Format();
+	VIDEOINFOHEADER * pvi = (VIDEOINFOHEADER *)m_mt.Format();
 
 	// If graph is inactive stop cueing samples
-	if(!m_pParent->IsActive()) {
+	if (!m_pParent->IsActive()) {
 		return S_FALSE;
 	}
 
@@ -878,10 +882,11 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 		// printf("SpoutCam - bMamoryMode detected\n");
 		return S_FALSE;
 	}
-	
+
 	//
 	// Timing - modified from Red5 method
 	//
+
 
 	// Set the timestamps that will govern playback frame rate.
 	// The current time is the sample's start.
@@ -902,7 +907,7 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 	else {
 		// Some programs do not implement the DirectShow clock and can crash if assumed
 		// so we can use TimeGetTime instead. Only millisecond precision, but so is Sleep.
-		refSync1 = (REFERENCE_TIME)timeGetTime() * 10000LL; // Cast before the multiply to avoid overflow
+		refSync1 = (REFERENCE_TIME)timeGetTime()*10000LL; // Cast before the multiply to avoid overflow
 	}
 
 	if (NumFrames <= 1)	{
@@ -920,21 +925,24 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 	if (rtDelta - refSync2 < 0)	{
 		// we are early
 		rtDelta2 = rtDelta - refSync2;
-		DWORD dwSleep = (DWORD)abs(rtDelta2 / 10000LL);
-		if (dwSleep >= 1)
-			Sleep(dwSleep);
+		DWORD dwSleep = (DWORD)abs(rtDelta2/10000LL);
+		if (dwSleep >= 1) {
+			// More precise than "Sleep" in milliseconds
+			std::this_thread::sleep_for(std::chrono::microseconds(abs(rtDelta2/10LL)));
+		}
 	}
-	else if (rtDelta / avgFrameTime > NumDroppedFrames)	{	
+	else if (rtDelta/avgFrameTime > NumDroppedFrames) {
 		// new dropped frame
 		NumDroppedFrames = rtDelta / avgFrameTime;
 		// Figure new RT for sleeping
-		refSync2 = NumDroppedFrames * avgFrameTime;
+		refSync2 = NumDroppedFrames*avgFrameTime;
 		// Our time stamping needs adjustment.
 		// Find total real stream time from start time.
 		rtNow = refSync1 - refStart;
 		m_rtLastTime = rtNow + avgFrameTime;
 		pms->SetDiscontinuity(true);
 	}
+
 
 	// The SetTime method sets the stream times when this sample should begin and finish.
 	hr = pms->SetTime(&rtNow, &m_rtLastTime);
@@ -986,13 +994,13 @@ HRESULT CVCamStream::FillBuffer(IMediaSample *pms)
 		goto ShowStatic;
 	}
 
-
 	// DirectX is initialized OK
-	// Get bgr pixels from the sender bgra shared texture
-	// 16 bit or floating point textures not supported
+	// Get BGR pixels from the sender DirectX shared texture
+	// Only 8-bit BGRA or RGBA textures supported
 	// ReceiveImage handles sender detection, connection and copy of pixels
 	if (receiver.ReceiveImage(pData, g_Width, g_Height, true, bInvert)) {
-		// bRGB = true : set rgb(i.e. not rgba data), bInvert = true : flip user setting
+		// bRGB = true : set true for the BGR pixel data (i.e. not RGBA/BGRA)
+		// bInvert : SpoutCamSettings or properites dialog user setting "flip"
 		// If IsUpdated() returns true, the sender has changed
 		if (receiver.IsUpdated()) {
 			if (strcmp(g_SenderName, receiver.GetSenderName()) != 0) {
