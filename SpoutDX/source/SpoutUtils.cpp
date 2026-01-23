@@ -9,7 +9,7 @@
 
 	- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-	Copyright (c) 2017-2025, Lynn Jarvis. All rights reserved.
+	Copyright (c) 2017-2026, Lynn Jarvis. All rights reserved.
 
 	Redistribution and use in source and binary forms, with or without modification, 
 	are permitted provided that the following conditions are met:
@@ -240,6 +240,19 @@
 		13.05.25 - Use a local file pointer for freopen_s with AllocConsole
 				   if "standaloneutils" is defined to avoid crash - unknown cause
 		25.05.25 - Add print option to EndTiming
+		22.05.25 - Update SDKversion to 2.007.016
+		09.08.25 - Change all "={}" initializations back to "{}"
+		01.09.25 - Correct GetFileVersionInfoA dwHandle arg from NULL to 0
+				   Correct RegOpenKeyExA options arg from NULL to 0
+				   Correct RegCreateKeyExA reserved arg from NULL to 0
+				   MessageBoxTimeoutA - add return value for else
+		06.09.25 - Add executable name to log file
+		16.09.25 - Update version to 2.007.017
+		13.12.25 - SpoutMessageBox edit control - allow for both IDOK and IDYES
+		18.12.25 - SpoutMessageBox with custom buttons - allow for Cancel (MB_CANCEL)
+				   Add #define MB_CANCEL TDCBF_CANCEL_BUTTON to SpoutUtils.h
+		19.12.25 - SpoutMessageBox edit control - remove conditions for get text from control string
+		22.01.26 - Review - update copyright year
 
 */
 
@@ -261,7 +274,6 @@
 // Refer to source code for documentation.
 //
 
-
 namespace spoututils {
 
 	// Local variables
@@ -272,7 +284,7 @@ namespace spoututils {
 	FILE* pCout = nullptr; // for log to console
 	std::ofstream logFile; // for log to file
 	std::string logPath; // folder path for the logfile
-	char logChars[1024]={}; // The current log string
+	char logChars[1024]{}; // The current log string
 	bool bConsole = false;
 #ifdef USE_CHRONO
 	std::chrono::steady_clock::time_point start;
@@ -287,7 +299,7 @@ namespace spoututils {
 
 	// Spout SDK version number string
 	// Major, minor, release
-	std::string SDKversion = "2.007.015";
+	std::string SDKversion = "2.007.017";
 
 	//
 	// Group: Information
@@ -299,17 +311,18 @@ namespace spoututils {
 	// Get SDK version number string e.g. "2.007.000"
 	// Optional - return as a single number
 	// e.g. 2.006 = 2006, 2.007 = 2007, 2.007.009 = 2007009
-	std::string GetSDKversion(int * number) {
-		if (number) {
-			// Version number string e.g. "2.007.009"
-			std::string str = SDKversion;
+	std::string GetSDKversion(int* pNumber) {
+		// Version number string e.g. "2.007.009"
+		std::string str = SDKversion;
+		if (!str.empty() && pNumber) {
 			// Remove all "." chars
-			str.erase(std::remove(str.begin(), str.end(), '.'), str.end());
+			std::string nstr = str;
+			nstr.erase(std::remove(nstr.begin(), nstr.end(), '.'), nstr.end());
 			// integer from string e.g. 2007009
-			*number = std::stoi(str);
+			*pNumber = std::stoi(nstr.c_str());
 		}
 		// Return the version string
-		return SDKversion;
+		return str;
 	}
 
 	// ---------------------------------------------------------
@@ -317,7 +330,7 @@ namespace spoututils {
 	//
 	// Get the user Spout version number from the registry
 	// Optional - return as a single number
-	std::string GetSpoutVersion(int * number) {
+	std::string GetSpoutVersion(int* number) {
 		std::string vstr;
 		DWORD dwVers = 0;
 		if (ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\Spout", "Version", &dwVers)) {
@@ -370,7 +383,13 @@ namespace spoututils {
 	//
 	// This method is necessary if the process is a dll
 	//
+	// The "GetCurrentModule" argument is the address of this
+	// function inside a loaded module (exe or dll).
+	// GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS returns a handle
+	// (HMODULE) to that module.
+	//
 	// https://gist.github.com/davidruhmann/8008844
+	//
 	HMODULE GetCurrentModule()
 	{
 		const DWORD flags = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
@@ -391,7 +410,7 @@ namespace spoututils {
 		DWORD dwSize = GetFileVersionInfoSizeA(path, nullptr);
 		if (dwSize > 0) {
 			std::vector<BYTE> data(dwSize);
-			if (GetFileVersionInfoA(path, NULL, dwSize, &data[0])) {
+			if (GetFileVersionInfoA(path, 0, dwSize, &data[0])) {
 				LPVOID pvProductVersion = NULL;
 				unsigned int iProductVersionLen = 0;
 				if (VerQueryValueA(&data[0], ("\\StringFileInfo\\080904E4\\ProductVersion"), &pvProductVersion, &iProductVersionLen)) {
@@ -492,7 +511,7 @@ namespace spoututils {
 			HWND hwndFgnd = GetForegroundWindow();
 			if (AllocConsole()) {
 				#ifndef standaloneUtils
-					FILE * fp = nullptr;
+					FILE* fp = nullptr;
 					const errno_t err = freopen_s(&fp, "CONOUT$", "w", stdout);
 				#else
 					const errno_t err = freopen_s(&pCout, "CONOUT$", "w", stdout);
@@ -619,7 +638,7 @@ namespace spoututils {
 	// Logs are displayed in a console window.  
 	// Useful for program development.
 	//
-	void EnableSpoutLog(const char *title)
+	void EnableSpoutLog(const char* title)
 	{
 
 		std::string name = GetExeName();
@@ -797,7 +816,7 @@ namespace spoututils {
 	// Show the Spout log file folder in Windows Explorer
 	void ShowSpoutLogs()
 	{
-		char directory[MAX_PATH]={};
+		char directory[MAX_PATH]{};
 		std::string logfilefolder;
 
 		if (logPath.empty() || _access(logPath.c_str(), 0) == -1) {
@@ -914,7 +933,7 @@ namespace spoututils {
 		if (!format)
 			return;
 
-		char currentLog[1024]={}; // allow more than the name length
+		char currentLog[1024]{}; // allow more than the name length
 
 		// Construct the current log
 		vsprintf_s(currentLog, 1024, format, args);
@@ -1120,7 +1139,7 @@ namespace spoututils {
 		stredit = text;
 		int iret = MessageTaskDialog(hwnd, content.c_str(), caption, uType, dwTimeout);
 		// Get text from global edit control string
-		if (iret == IDOK) text = stredit;
+		text = stredit;
 		stredit.clear();
 		bEdit = false;
 		return iret;
@@ -1149,7 +1168,7 @@ namespace spoututils {
 		comboitems = items;
 		comboindex = index;
 		int iret = MessageTaskDialog(hwnd, content.c_str(), caption, uType, dwTimeout);
-		if (iret == IDOK) index = comboindex;
+		index = comboindex;
 		comboitems.clear();
 		comboindex = 0;
 		bCombo = false;
@@ -1320,7 +1339,7 @@ namespace spoututils {
 	// ---------------------------------------------------------
 	// Function: ReadDwordFromRegistry
 	// Read subkey DWORD value
-	bool ReadDwordFromRegistry(HKEY hKey, const char *subkey, const char *valuename, DWORD *pValue)
+	bool ReadDwordFromRegistry(HKEY hKey, const char* subkey, const char* valuename, DWORD* pValue)
 	{
 		if (!subkey || !*subkey || !valuename || !*valuename || !pValue)
 			return false;
@@ -1341,17 +1360,17 @@ namespace spoututils {
 	// ---------------------------------------------------------
 	// Function: WriteDwordToRegistry
 	// Write subkey DWORD value
-	bool WriteDwordToRegistry(HKEY hKey, const char *subkey, const char *valuename, DWORD dwValue)
+	bool WriteDwordToRegistry(HKEY hKey, const char* subkey, const char* valuename, DWORD dwValue)
 	{
 		if (!subkey || !*subkey || !valuename || !*valuename)
 			return false;
 
 		HKEY hRegKey = NULL;
 		// Does the key already exist ?
-		LONG regres = RegOpenKeyExA(hKey, subkey, NULL, KEY_ALL_ACCESS, &hRegKey);
+		LONG regres = RegOpenKeyExA(hKey, subkey, 0, KEY_ALL_ACCESS, &hRegKey);
 		if (regres != ERROR_SUCCESS) {
 			// Create a new key
-			regres = RegCreateKeyExA(hKey, subkey, NULL, NULL, REG_OPTION_NON_VOLATILE, KEY_ALL_ACCESS, NULL, &hRegKey, NULL);
+			regres = RegCreateKeyExA(hKey, subkey, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_ALL_ACCESS, NULL, &hRegKey, NULL);
 		}
 
 		if (regres == ERROR_SUCCESS && hRegKey != NULL) {
@@ -1376,7 +1395,7 @@ namespace spoututils {
 	// ---------------------------------------------------------
 	// Function: ReadPathFromRegistry
 	// Read subkey character string
-	bool ReadPathFromRegistry(HKEY hKey, const char *subkey, const char *valuename, char *filepath, DWORD dwSize)
+	bool ReadPathFromRegistry(HKEY hKey, const char* subkey, const char* valuename, char* filepath, DWORD dwSize)
 	{
 		// Valuename can be null for the (Default) key string
 		if (!subkey || !*subkey || !filepath)
@@ -1388,7 +1407,7 @@ namespace spoututils {
 		DWORD dwSizePath = dwSize;
 
 		// Does the key exist
-		regres = RegOpenKeyExA(hKey, subkey, NULL, KEY_READ, &hRegKey);
+		regres = RegOpenKeyExA(hKey, subkey, 0, KEY_READ, &hRegKey);
 		if (regres == ERROR_SUCCESS) {
 			// Read the key Filepath value
 			regres = RegQueryValueExA(hRegKey, valuename, NULL, &dwKey, (BYTE*)filepath, &dwSizePath);
@@ -1412,7 +1431,7 @@ namespace spoututils {
 	// ---------------------------------------------------------
 	// Function: WritePathToRegistry
 	// Write subkey character string
-	bool WritePathToRegistry(HKEY hKey, const char *subkey, const char *valuename, const char *filepath)
+	bool WritePathToRegistry(HKEY hKey, const char* subkey, const char* valuename, const char* filepath)
 	{
 		if (!subkey || !*subkey || !valuename || !*valuename || !filepath)
 			return false;
@@ -1421,10 +1440,10 @@ namespace spoututils {
 		const DWORD dwSize = (DWORD)strlen(filepath)+1;
 
 		// Does the key already exist ?
-		LONG regres = RegOpenKeyExA(hKey, subkey, NULL, KEY_ALL_ACCESS, &hRegKey);
+		LONG regres = RegOpenKeyExA(hKey, subkey, 0, KEY_ALL_ACCESS, &hRegKey);
 		if (regres != ERROR_SUCCESS) {
 			// Create a new key
-			regres = RegCreateKeyExA(hKey, subkey, NULL, NULL, REG_OPTION_NON_VOLATILE, KEY_ALL_ACCESS, NULL, &hRegKey, NULL);
+			regres = RegCreateKeyExA(hKey, subkey, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_ALL_ACCESS, NULL, &hRegKey, NULL);
 		}
 
 		if (regres == ERROR_SUCCESS && hRegKey != NULL) {
@@ -1445,17 +1464,17 @@ namespace spoututils {
 	// ---------------------------------------------------------
 	// Function: WriteBinaryToRegistry
 	// Write subkey binary hex data string
-	bool WriteBinaryToRegistry(HKEY hKey, const char *subkey, const char *valuename, const unsigned char *hexdata, DWORD nChars)
+	bool WriteBinaryToRegistry(HKEY hKey, const char* subkey, const char* valuename, const unsigned char* hexdata, DWORD nChars)
 	{
 		if (!subkey || !*subkey || !valuename || !*valuename || !hexdata)
 			return false;
 
 		HKEY  hRegKey = NULL;
 		// Does the key already exist ?
-		LONG regres = RegOpenKeyExA(hKey, subkey, NULL, KEY_ALL_ACCESS, &hRegKey);
+		LONG regres = RegOpenKeyExA(hKey, subkey, 0, KEY_ALL_ACCESS, &hRegKey);
 		if (regres != ERROR_SUCCESS) {
 			// Create a new key
-			regres = RegCreateKeyExA(hKey, subkey, NULL, NULL, REG_OPTION_NON_VOLATILE, KEY_ALL_ACCESS, NULL, &hRegKey, NULL);
+			regres = RegCreateKeyExA(hKey, subkey, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_ALL_ACCESS, NULL, &hRegKey, NULL);
 		}
 
 		if (regres == ERROR_SUCCESS && hRegKey != NULL) {
@@ -1476,7 +1495,7 @@ namespace spoututils {
 	// ---------------------------------------------------------
 	// Function: RemovePathFromRegistry
 	// Remove subkey value name
-	bool RemovePathFromRegistry(HKEY hKey, const char *subkey, const char *valuename)
+	bool RemovePathFromRegistry(HKEY hKey, const char* subkey, const char* valuename)
 	{
 		if (!subkey || !*subkey || !valuename) {
 			SpoutLogWarning("RemovePathFromRegistry - no subkey specified");
@@ -1484,7 +1503,7 @@ namespace spoututils {
 		}
 
 		HKEY hRegKey = NULL;
-		LONG regres = RegOpenKeyExA(hKey, subkey, NULL, KEY_ALL_ACCESS, &hRegKey);
+		LONG regres = RegOpenKeyExA(hKey, subkey, 0, KEY_ALL_ACCESS, &hRegKey);
 		if (regres == ERROR_SUCCESS) {
 			regres = RegDeleteValueA(hRegKey, valuename);
 			RegCloseKey(hRegKey);
@@ -1507,7 +1526,7 @@ namespace spoututils {
 	//
 	// Note that key names are not case sensitive.
 	//
-	bool RemoveSubKey(HKEY hKey, const char *subkey)
+	bool RemoveSubKey(HKEY hKey, const char* subkey)
 	{
 		if (!subkey || !*subkey)
 			return false;
@@ -1523,13 +1542,13 @@ namespace spoututils {
 	// ---------------------------------------------------------
 	// Function: FindSubKey
 	// Find subkey
-	bool FindSubKey(HKEY hKey, const char *subkey)
+	bool FindSubKey(HKEY hKey, const char* subkey)
 	{
 		if (!subkey || !*subkey)
 			return false;
 
 		HKEY hRegKey = NULL;
-		const LONG lStatus = RegOpenKeyExA(hKey, subkey, NULL, KEY_READ, &hRegKey);
+		const LONG lStatus = RegOpenKeyExA(hKey, subkey, 0, KEY_READ, &hRegKey);
 		if(lStatus == ERROR_SUCCESS) {
 			RegCloseKey(hRegKey);
 			return true;
@@ -1592,9 +1611,9 @@ namespace spoututils {
 		start = std::chrono::steady_clock::now();
 	}
 
-	// Stop timing and return milliseconds or microseconds elapsed.
+	// Stop timing and return milliseconds or microseconds elapsed
 	// (microseconds default).
-	// Code console output can be enabled for quick timing tests.
+	// Console output can be enabled for quick timing tests.
 	double EndTiming(bool microseconds, bool bPrint) {
 		end = std::chrono::steady_clock::now();
 		double elapsed = 0;
@@ -1696,7 +1715,7 @@ namespace spoututils {
 
 			if (logFile.is_open()) {
 				// Date and time to identify the log
-				char tmp[128]={};
+				char tmp[128]{};
 				time_t datime;
 				struct tm tmbuff;
 				time(&datime);
@@ -1709,9 +1728,17 @@ namespace spoututils {
 					logFile << "   " << tmp << std::endl;
 				}
 				else {
-					logFile << "========================" << std::endl;
-					logFile << "    Spout log file" << std::endl;
-					logFile << "========================" << std::endl;
+					logFile << "========================================" << std::endl;
+					logFile << " Spout log file ";
+					size_t bs = logPath.find_last_of("\\");
+					if(bs == std::string::npos)
+						bs = logPath.find_last_of("/");
+					if (bs != std::string::npos) {
+						std::string logName = "\"" + logPath.substr(bs+1) + "\"";
+						logFile << logName.c_str();
+					}
+					logFile << std::endl;
+					logFile << "========================================" << std::endl;
 					logFile << " " << tmp << std::endl;
 				}
 				logFile.close();
@@ -1725,11 +1752,11 @@ namespace spoututils {
 		// Get the default log file path
 		std::string _getLogPath()
 		{
-			char logpath[MAX_PATH]={};
+			char logpath[MAX_PATH]{};
 			logpath[0] = 0;
 
 			// Retrieve user %appdata% environment variable
-			char *appdatapath = nullptr;
+			char* appdatapath = nullptr;
 			bool bSuccess = true;
 			errno_t err = 0;
 			#if defined(_MSC_VER)
@@ -1952,7 +1979,7 @@ namespace spoututils {
 			//
 
 			// User buttons
-			TASKDIALOG_BUTTON buttons[10]={ 0 };
+			TASKDIALOG_BUTTON buttons[10]{};
 
 			// Use a wide string to avoid a pre-sized buffer
 			std::wstring wstrTemp;
@@ -1996,12 +2023,18 @@ namespace spoututils {
 					buttons[i].nButtonID = TDbuttonID[i];
 					buttons[i].pszButtonText = TDbuttonTitle[i].c_str();
 				}
-				// Final button is OK
-				// CANCEL/YES/NO etc have to be added as buttons
-				buttons[i].nButtonID = IDOK;
-				buttons[i].pszButtonText = L"OK";
+				if (dwButtons == MB_CANCEL) {
+					buttons[i].nButtonID = IDCANCEL;
+					buttons[i].pszButtonText = L"Cancel";
+				}
+				else {
+					// Final button default is OK
+					// YES/NO etc have to be added as buttons
+					buttons[i].nButtonID = IDOK;
+					buttons[i].pszButtonText = L"OK";
+				}
+
 			}
-			// }
 			else {
 				//
 				// Common buttons
@@ -2103,10 +2136,11 @@ namespace spoututils {
 			}
 
 			config.cxWidth            = 0; // auto width - requires TDF_SIZE_TO_CONTENT
+
 			// TDF_POSITION_RELATIVE_TO_WINDOW Indicates that the task dialog is
 			// centered relative to the window specified by hwndParent.
 			// If hwndParent is NULL, the dialog is centered on the monitor.
-			config.dwFlags            = TDF_POSITION_RELATIVE_TO_WINDOW | TDF_SIZE_TO_CONTENT | TDF_CALLBACK_TIMER | TDF_ENABLE_HYPERLINKS;
+			config.dwFlags  = TDF_POSITION_RELATIVE_TO_WINDOW | TDF_SIZE_TO_CONTENT | TDF_CALLBACK_TIMER | TDF_ENABLE_HYPERLINKS;
 			if ((dwButtons & MB_RIGHT) == MB_RIGHT)
 				config.dwFlags |= TDF_RTL_LAYOUT;
 			
@@ -2161,6 +2195,8 @@ namespace spoututils {
 			UNREFERENCED_PARAMETER(hInst);
 			if(MessageBoxTimeoutA(NULL, content, caption, dwButtons, 0, dwMilliseconds) == 0)
 				return MessageBoxA(NULL, content, caption, dwButtons);
+			else
+				return IDRETRY;
 #endif
 		}
 
@@ -2476,6 +2512,7 @@ namespace spoututils {
 			return bRet;
 
 		} // end OpenSpoutPanel
+
 
 	} // end private namespace
 

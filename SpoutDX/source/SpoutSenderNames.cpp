@@ -110,10 +110,12 @@
 	Version 2.007.014
 	20.06.24 - Add GetSenderIndex
 	23.08.24 - GetSenderInfo, SetSenderID - initialize SharedTextureInfo
-
-
+	30.10.25 - Remove __movsd. Timing tests show no performance gain.
+	22.01.26 - Add "using namespace spoututils" to header
+			   Review - update copyright year
+	
 	- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-	Copyright (c) 2014-2025, Lynn Jarvis. All rights reserved.
+	Copyright (c) 2014-2026, Lynn Jarvis. All rights reserved.
 
 	Redistribution and use in source and binary forms, with or without modification, 
 	are permitted provided that the following conditions are met:
@@ -656,7 +658,7 @@ bool spoutSenderNames::SetSenderInfo(const char* sendername, unsigned int width,
 	memcpy(&info.description[0], &exepath[0], 256); // wchar 128
 
 	// Set data to the memory map
-	__movsd((unsigned long *)pBuf, (unsigned long const *)&info, sizeof(SharedTextureInfo) / 4); // 280 bytes
+	memcpy((void *)pBuf, (void *)&info, sizeof(SharedTextureInfo));
 
 	senderInfoMap->Unlock();
 	
@@ -1236,7 +1238,7 @@ bool spoutSenderNames::getSharedInfo(const char* sharedMemoryName, SharedTexture
 	if(mem.Open(sharedMemoryName)) {
 		const char *pBuf = mem.Lock();
 		if(pBuf) {
-			__movsd((unsigned long *)info, (unsigned long const *)pBuf, sizeof(SharedTextureInfo) / 4); // 280 bytes
+			memcpy((void *)info, (void *)pBuf, sizeof(SharedTextureInfo));
 			mem.Unlock();
 			return true;
 		}
@@ -1251,17 +1253,15 @@ bool spoutSenderNames::setSharedInfo(const char* sharedMemoryName, const SharedT
 {
 	SpoutSharedMemory mem;
 
-	if (!mem.Open(sharedMemoryName)) {
+	if (!mem.Open(sharedMemoryName))
 		return false;
-	}
 
 	char *pBuf = mem.Lock();
 
-	if (!pBuf)	{
+	if (!pBuf)
 		return false;
-	}
 
-	__movsd((unsigned long *)pBuf, (unsigned long const *)info, sizeof(SharedTextureInfo) / 4); // 280 bytes
+	memcpy((void *)pBuf, (void *)info, sizeof(SharedTextureInfo));
 
 	mem.Unlock();
 	

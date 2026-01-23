@@ -6,7 +6,7 @@
 
 		- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-		Copyright (c) 2017-2025, Lynn Jarvis. All rights reserved.
+		Copyright (c) 2017-2026, Lynn Jarvis. All rights reserved.
 
 		Redistribution and use in source and binary forms, with or without modification, 
 		are permitted provided that the following conditions are met:
@@ -55,8 +55,9 @@
 #include <direct.h> // for _getcwd
 #include <vector>
 #include <string>
-#include <Shellapi.h> // for shellexecute
-#include <Commctrl.h> // For TaskDialogIndirect
+
+#include <shellapi.h> // for shellexecute
+#include <commctrl.h> // For TaskDialogIndirect
 #include <math.h> // for round
 #include <algorithm> // for string character remove
 
@@ -80,10 +81,10 @@
 #include <thread>
 #endif
 
-#pragma comment(lib, "Shell32.lib") // for shellexecute
-#pragma comment(lib, "Advapi32.lib") // for registry functions
-#pragma comment(lib, "Version.lib") // for version resources where necessary
-#pragma comment(lib, "Comctl32.lib") // For taskdialog
+#pragma comment(lib, "shell32.lib") // for shellexecute
+#pragma comment(lib, "advapi32.lib") // for registry functions
+#pragma comment(lib, "version.lib") // for version resources where necessary
+#pragma comment(lib, "comctl32.lib") // For taskdialog
 
 // TaskDialog requires comctl32.dll version 6
 #ifdef _MSC_VER
@@ -92,6 +93,9 @@
 name='Microsoft.Windows.Common-Controls' version='6.0.0.0' \
 processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 #endif
+
+// For cancel button only together with custom buttons
+#define MB_CANCEL TDCBF_CANCEL_BUTTON
 
 // SpoutUtils
 namespace spoututils {
@@ -120,11 +124,11 @@ namespace spoututils {
 	// Get SDK version number string e.g. "2.007.000"
 	// Optional - return as a single number
 	// e.g. 2.006 = 2006, 2.007 = 2007, 2.007.009 = 2007009
-	std::string SPOUT_DLLEXP GetSDKversion(int * number = nullptr);
+	std::string SPOUT_DLLEXP GetSDKversion(int* number = nullptr);
 
 	// Get the user Spout version from the registry
 	// Optional - return as a single number
-	std::string SPOUT_DLLEXP GetSpoutVersion(int * number = nullptr);
+	std::string SPOUT_DLLEXP GetSpoutVersion(int* number = nullptr);
 
 	// Computer type
 	bool SPOUT_DLLEXP IsLaptop();
@@ -154,7 +158,7 @@ namespace spoututils {
 	// Open console window.
 	// A console window opens without logs.
 	// Useful for debugging with console output.
-	void SPOUT_DLLEXP OpenSpoutConsole(const char *title = nullptr);
+	void SPOUT_DLLEXP OpenSpoutConsole(const char* title = nullptr);
 	
 	// Close console window.
 	// The optional warning displays a MessageBox if user notification is required.
@@ -241,10 +245,10 @@ namespace spoututils {
 
 	// MessageBox dialog with optional timeout.
 	// The dialog closes itself if a timeout is specified.
-	int SPOUT_DLLEXP SpoutMessageBox(const char * message, DWORD dwMilliseconds = 0);
+	int SPOUT_DLLEXP SpoutMessageBox(const char* message, DWORD dwMilliseconds = 0);
 
 	// MessageBox with variable arguments
-	int SPOUT_DLLEXP SpoutMessageBox(const char * caption, const char* format, ...);
+	int SPOUT_DLLEXP SpoutMessageBox(const char* caption, const char* format, ...);
 	
 	// MessageBox with variable arguments and icon, buttons
 	int SPOUT_DLLEXP SpoutMessageBox(const char* caption, UINT uType, const char* format, ...);
@@ -304,30 +308,30 @@ namespace spoututils {
 	//
 
 	// Read subkey DWORD value
-	bool SPOUT_DLLEXP ReadDwordFromRegistry(HKEY hKey, const char *subkey, const char *valuename, DWORD *pValue);
+	bool SPOUT_DLLEXP ReadDwordFromRegistry(HKEY hKey, const char* subkey, const char* valuename, DWORD* pValue);
 	
 	// Write subkey DWORD value
-	bool SPOUT_DLLEXP WriteDwordToRegistry(HKEY hKey, const char *subkey, const char *valuename, DWORD dwValue);
+	bool SPOUT_DLLEXP WriteDwordToRegistry(HKEY hKey, const char* subkey, const char* valuename, DWORD dwValue);
 	
 	// Read subkey character string
-	bool SPOUT_DLLEXP ReadPathFromRegistry(HKEY hKey, const char *subkey, const char *valuename, char *filepath, DWORD dwSize = MAX_PATH);
+	bool SPOUT_DLLEXP ReadPathFromRegistry(HKEY hKey, const char* subkey, const char* valuename, char* filepath, DWORD dwSize = MAX_PATH);
 	
 	// Write subkey character string
-	bool SPOUT_DLLEXP WritePathToRegistry(HKEY hKey, const char *subkey, const char *valuename, const char *filepath);
+	bool SPOUT_DLLEXP WritePathToRegistry(HKEY hKey, const char* subkey, const char* valuename, const char* filepath);
 	
 	// Write subkey binary hex data string
-	bool SPOUT_DLLEXP WriteBinaryToRegistry(HKEY hKey, const char *subkey, const char *valuename, const unsigned char *hexdata, DWORD nchars);
+	bool SPOUT_DLLEXP WriteBinaryToRegistry(HKEY hKey, const char* subkey, const char* valuename, const unsigned char* hexdata, DWORD nchars);
 
 	// Remove subkey value name
-	bool SPOUT_DLLEXP RemovePathFromRegistry(HKEY hKey, const char *subkey, const char *valuename);
+	bool SPOUT_DLLEXP RemovePathFromRegistry(HKEY hKey, const char* subkey, const char* valuename);
 	
 	// Delete a subkey and its values.
 	//   It must be a subkey of the key that hKey identifies, but it cannot have subkeys.  
 	//   Note that key names are not case sensitive.  
-	bool SPOUT_DLLEXP RemoveSubKey(HKEY hKey, const char *subkey);
+	bool SPOUT_DLLEXP RemoveSubKey(HKEY hKey, const char* subkey);
 	
 	// Find subkey
-	bool SPOUT_DLLEXP FindSubKey(HKEY hKey, const char *subkey);
+	bool SPOUT_DLLEXP FindSubKey(HKEY hKey, const char* subkey);
 
 	//
 	// Timing functions
@@ -361,7 +365,7 @@ namespace spoututils {
 		// Local functions
 		void _logtofile(bool append = false);
 		std::string _getLogPath();
-		std::string _getLogFilePath(const char *filename);
+		std::string _getLogFilePath(const char* filename);
 		std::string _levelName(SpoutLogLevel level);
 		// Taskdialog for SpoutMessageBox
 		int MessageTaskDialog(HWND hWnd, const char* content, const char* caption, DWORD dwButtons, DWORD dwMilliseconds);

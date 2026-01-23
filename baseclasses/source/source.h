@@ -71,7 +71,8 @@ public:
 protected:
 
     int             m_iPins;       // The number of pins on this filter. Updated by CSourceStream
-    	   			   // constructors & destructors.
+    
+	// constructors & destructors.
     CSourceStream **m_paStreams;   // the pins on this filter.
 
     CCritSec m_cStateLock;	// Lock this to serialize function accesses to the filter state

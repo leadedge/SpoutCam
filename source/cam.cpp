@@ -12,7 +12,7 @@
 	after the filter has been loaded. If there is no Sender, 
 	the default is 640x480 with a noise image
 
-	Copyright 2013-2025 Lynn Jarvis - spout@zeal.co
+	Copyright 2013-2026 Lynn Jarvis - spout@zeal.co
 
 	"SpoutCam" is free software: 
 	you can redistribute it and/or modify it under the terms of the GNU
@@ -325,6 +325,10 @@
 			   No code changes for SpoutCam
 	23.07.25   Update ReceiveImage for multiple formats with DirectX 11 compute shaders
 	20.10.25   Update Version.h - Vers 2.035 (Spout 2.007.017)
+	15.01.26   FillBuffer - prevent retries on failure to initialize DirectX
+	18.01.26   SpoutCopy - optimize rgba2rgbResample (x2 speed gain)
+	23.01.26   Update Version.h - Vers 2.036
+
 
 */
 
@@ -356,7 +360,7 @@ CUnknown * WINAPI CVCam::CreateInstance(LPUNKNOWN lpunk, HRESULT *phr)
 	// OpenSpoutConsole(); // Empty console
 	// EnableSpoutLog(); // Show error logs
 	// EnableSpoutLogFile("SpoutCamDX_2022");
-	// SpoutLog("SpoutCamDX ~ Vers 2.035\n");
+	// SpoutLog("SpoutCamDX ~ Vers 2.036\n");
 
 	// For clear options dialog for scaled display
 	SetProcessDPIAware();
@@ -583,7 +587,8 @@ HRESULT CVCamStream::put_Settings(DWORD dwFps, DWORD dwResolution, DWORD dwMirro
 CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 	CSourceStream(NAME(SPOUTCAMNAME), phr, pParent, pPinName), m_pParent(pParent) //VS: replaced SpoutCamName with makro SPOUTCAMNAME, NAME() expects LPCTSTR
 {
-	bDXinitialized  = false; // DirectX
+	bDXavailable    = true;  // DirectX available
+	bDXinitialized  = false; // DirectX initialized
 	bMemoryMode		= false; // Default mode is texture, true means memoryshare
 	bInvert         = true;  // Flip vertically
 	bInitialized	= false; // Spoutcam receiver
@@ -593,28 +598,8 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 	g_ActiveSender[0] = 0;
 	g_SenderStart[0] = 0;
 
-	/*
 	// Testing
-	OpenSpoutConsole();
-	// Get filter preference
-	char filename[MAX_PATH]{};
-	GetModuleFileNameA(g_hInst, filename, MAX_PATH);
-	printf("%s\n", filename);
-	int pref = receiver.GetPerformancePreference(filename);
-	printf("filter preference = %d\n", pref);
-
-	// Get application preference
-	GetModuleFileNameA(NULL, filename, MAX_PATH);
-	printf("%s\n", filename);
-	pref = receiver.GetPerformancePreference(filename);
-	printf("application preference = %d\n", pref);
-
-	// Adapter in use
-	int index = receiver.GetAdapter();
-	receiver.GetAdapterName(index, filename, MAX_PATH);
-	printf("Adapter in use (%d) [%s]\n", index, filename);
-	*/
-
+	// OpenSpoutConsole();
 
 	// Maximum precision of timeGetTime used in FillBuffer
 	timeGetDevCaps(&g_caps, sizeof(g_caps));
@@ -632,9 +617,8 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 	//			60	5
 	//
 	// Fps from SpoutCamSettings (default 3 = 30)
-	if (!ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "fps", &dwFps)) {
+	if (!ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "fps", &dwFps))
 		dwFps = 3;
-	}
 
 	//		o Resolution
 	//			Sender			0
@@ -651,9 +635,7 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 	//
 	// Resolution from SpoutCamSettings (default 0 = active sender)
 	if (!ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "resolution", &dwResolution))
-	{
 		dwResolution = 0;
-	}
 
 	// Find out whether memoryshare mode is selected by SpoutSettings
 	// (Memoryshare is not supported by DirectX)
@@ -760,10 +742,9 @@ void CVCamStream::SetResolution(DWORD dwResolution)
 				// Use the resolution of the active sender if one is running
 				if (receiver.GetActiveSender(g_SenderName))
 				{
-					unsigned int width, height;
-					HANDLE sharehandle;
-					DWORD format;
-
+					unsigned int width, height = 0;
+					HANDLE sharehandle = nullptr;
+					DWORD format = 0;
 					if (receiver.GetSenderInfo(g_SenderName, width, height, sharehandle, format))
 					{
 						// If not fixed to the a selected resolution, use the sender width and height
@@ -879,14 +860,12 @@ HRESULT CVCamStream::FillBuffer(IMediaSample * pms) {
 
 	// Memory share mode not supported by DirectX
 	if (bMemoryMode) {
-		// printf("SpoutCam - bMamoryMode detected\n");
 		return S_FALSE;
 	}
 
 	//
 	// Timing - modified from Red5 method
 	//
-
 
 	// Set the timestamps that will govern playback frame rate.
 	// The current time is the sample's start.
@@ -966,20 +945,23 @@ HRESULT CVCamStream::FillBuffer(IMediaSample * pms) {
 
 	// Sizes should be OK, but check again
 	unsigned int size = (unsigned int)pms->GetSize();
-	// TODO : check imagesize = width*height*3;
 	if(size != imagesize) { // imagesize retrieved above
 		ReleaseCamReceiver();
 		goto ShowStatic;
 	}
 
 	// Initialize DirectX if is has not been done
-	// TODO : prevent retries on failure
-	if (!bDXinitialized) {
-		if (!receiver.OpenDirectX11()) {
-			return NOERROR;
-		}
-		bDXinitialized = true;
-	} // endif !bDXinitialized
+	// and prevent retries on failure
+	if (bDXavailable && !bDXinitialized) {
+		bDXinitialized = receiver.OpenDirectX11();
+		if(!bDXinitialized)
+			bDXavailable = false; // DirectX is not available
+	}
+
+	if (!bDXavailable) {
+		// DirectX is not available - do not try again
+		return NOERROR;
+	}
 	
 	// Is anything running at all ?
 	if (!receiver.GetActiveSender(g_ActiveSender)) {
@@ -996,13 +978,14 @@ HRESULT CVCamStream::FillBuffer(IMediaSample * pms) {
 
 	// DirectX is initialized OK
 	// Get BGR pixels from the sender DirectX shared texture
+	// SSE3 optimization if available
 	// Only 8-bit BGRA or RGBA textures supported
 	// ReceiveImage handles sender detection, connection and copy of pixels
+	// bRGB    : set true for the BGR pixel data (i.e. not RGBA/BGRA)
+	// bInvert : SpoutCamSettings or properites dialog user setting "flip"
 	if (receiver.ReceiveImage(pData, g_Width, g_Height, true, bInvert)) {
-		// bRGB = true : set true for the BGR pixel data (i.e. not RGBA/BGRA)
-		// bInvert : SpoutCamSettings or properites dialog user setting "flip"
-		// If IsUpdated() returns true, the sender has changed
 		if (receiver.IsUpdated()) {
+			// The sender has changed
 			if (strcmp(g_SenderName, receiver.GetSenderName()) != 0) {
 				// Only test for change of sender name.
 				// The pixel buffer (pData) remains the same size and 
@@ -1103,9 +1086,8 @@ HRESULT CVCamStream::GetMediaType(int iPosition, CMediaType *pmt)
 	pvi->bmiHeader.biWidth				= (LONG)width;
 	pvi->bmiHeader.biHeight				= (LONG)height;
 	pvi->bmiHeader.biPlanes				= 1;
-	pvi->bmiHeader.biBitCount			= 24;
-	pvi->bmiHeader.biCompression		= 0; // defaults 
-	pvi->bmiHeader.biSizeImage			= 0;
+	pvi->bmiHeader.biBitCount			= 24; // BGR
+	pvi->bmiHeader.biCompression		= 0;  // defaults 
 	pvi->bmiHeader.biClrImportant		= 0;
 	pvi->bmiHeader.biSizeImage			= GetBitmapSize(&pvi->bmiHeader);
 
@@ -1126,7 +1108,6 @@ HRESULT CVCamStream::GetMediaType(int iPosition, CMediaType *pmt)
     // Work out the GUID for the subtype from the header info.
     const GUID SubTypeGUID = GetBitmapSubtype(&pvi->bmiHeader);
     pmt->SetSubtype(&SubTypeGUID);
-	pmt->SetVariableSize(); // LJ - to be checked
     pmt->SetSampleSize(pvi->bmiHeader.biSizeImage);
 
     return NOERROR;
@@ -1248,7 +1229,7 @@ HRESULT STDMETHODCALLTYPE CVCamStream::GetStreamCaps(int iIndex, AM_MEDIA_TYPE *
 	}
 
 	pvi->bmiHeader.biCompression	= BI_RGB;
-    pvi->bmiHeader.biBitCount		= 24;
+    pvi->bmiHeader.biBitCount		= 24; // BGR
     pvi->bmiHeader.biSize			= sizeof(BITMAPINFOHEADER);
     pvi->bmiHeader.biWidth			= (LONG)width;
     pvi->bmiHeader.biHeight			= (LONG)height;
@@ -1260,7 +1241,7 @@ HRESULT STDMETHODCALLTYPE CVCamStream::GetStreamCaps(int iIndex, AM_MEDIA_TYPE *
     SetRectEmpty(&(pvi->rcTarget)); // no particular destination rectangle
 
     (*pmt)->majortype				= MEDIATYPE_Video;
-    (*pmt)->subtype					= MEDIASUBTYPE_RGB24;
+    (*pmt)->subtype					= MEDIASUBTYPE_RGB24; // BGR
     (*pmt)->formattype				= FORMAT_VideoInfo;
     (*pmt)->bTemporalCompression	= false;
     (*pmt)->bFixedSizeSamples		= false;
@@ -1297,10 +1278,12 @@ HRESULT STDMETHODCALLTYPE CVCamStream::GetStreamCaps(int iIndex, AM_MEDIA_TYPE *
     pvscc->StretchTapsY			= 0;
     pvscc->ShrinkTapsX			= 0;
     pvscc->ShrinkTapsY			= 0;
-	pvscc->MinFrameInterval = 166667;   // 60 fps 333333; // 30fps  // LJ what is the consequence of this ?
-    pvscc->MaxFrameInterval = 50000000; // 0.2 fps
-    pvscc->MinBitsPerSecond = (80 * 60 * 3 * 8) / 5;
-    pvscc->MaxBitsPerSecond = 1920 * 1080 * 3 * 8 * 30; // (integral overflow at 60 - anyway we lock on to 30fps and 1920 might not achieve 60fps)
+	pvscc->MinFrameInterval     = 166667;   // 60 fps max
+    pvscc->MaxFrameInterval     = 50000000; // 0.2 fps min
+    pvscc->MinBitsPerSecond     = (80*60*4*8)/5; // At 80x50 resolution and 5 fps
+    // 1920 * 1080 * 4 * 8 * 60; // (integral overflow at 60 fps)
+	// Anyway 1920x1080 might not achieve 60fps
+	pvscc->MaxBitsPerSecond = LONG_MAX; 
 
     return S_OK;
 }

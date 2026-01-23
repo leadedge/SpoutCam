@@ -28,9 +28,8 @@
 #define CRTDBG_MAP_ALLOC
 #include <stdlib.h>
 #include <crtdbg.h>
-
-#include "..\SpoutDX\source\SpoutDX.h"
 #include <streams.h>
+#include "..\SpoutDX\source\SpoutDX.h"
 
 //<==================== VS-START ====================>
 #include "dshowutil.h"
@@ -217,6 +216,7 @@ public:
 	bool bInvert;                // Flip vertically
 	bool bInitialized;
 	bool bDXinitialized;
+	bool bDXavailable;
 
 	unsigned int g_Width;			 // The global filter image width
 	unsigned int g_Height;			 // The global filter image height
