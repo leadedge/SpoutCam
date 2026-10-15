@@ -110,10 +110,19 @@
 	Version 2.007.014
 	20.06.24 - Add GetSenderIndex
 	23.08.24 - GetSenderInfo, SetSenderID - initialize SharedTextureInfo
+	Version 2.007.017
 	30.10.25 - Remove __movsd. Timing tests show no performance gain.
 	22.01.26 - Add "using namespace spoututils" to header
 			   Review - update copyright year
-	
+	16.07.26 - move using namespace spoututils from header to class file
+	30.07.26 - readSenderSetFromBuffer -
+			   Cast name to unsigned char to allow for non-ASCII characters
+	12.08.26 - Change to PtrToUint/UintToPtr for SetSenderInfo/GetSenderInfo
+			   instead of HandleToLong/LongToHandle
+	10.10.26 - SetSenderInfo - restore removed dwFormat
+	Version 2.007.018
+
+
 	- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 	Copyright (c) 2014-2026, Lynn Jarvis. All rights reserved.
 
@@ -141,6 +150,8 @@
 */
 #include "SpoutSenderNames.h"
 #include <assert.h>
+
+using namespace spoututils;
 
 //
 // Class: spoutSenderNames
@@ -579,13 +590,8 @@ bool spoutSenderNames::GetSenderInfo(const char* sendername, unsigned int &width
 	if(getSharedInfo(sendername, &info)) {
 		width		  = (unsigned int)info.width;
 		height		  = (unsigned int)info.height;
-#if defined _M_X64 || defined _M_ARM64
-		dxShareHandle = (HANDLE)(LongToHandle((long)info.shareHandle));
-#else
-		dxShareHandle = (HANDLE)info.shareHandle;
-#endif
+		dxShareHandle = (HANDLE)UIntToPtr(info.shareHandle);
 		dwFormat      = info.format;
-
 		return true;
 	}
 	return false;
@@ -619,13 +625,9 @@ bool spoutSenderNames::SetSenderInfo(const char* sendername, unsigned int width,
 		
 	info.width       = (uint32_t)width;
 	info.height      = (uint32_t)height;
-#ifdef _M_X64
-	info.shareHandle = (uint32_t)(HandleToLong(dxShareHandle));
-#else
-	info.shareHandle = (uint32_t)dxShareHandle;
-#endif
+	info.shareHandle = PtrToUint(dxShareHandle);
 	info.format      = (uint32_t)dwFormat;
-	
+
 	// Texture usage - unused
 	info.usage = 0;
 
@@ -1069,7 +1071,8 @@ void spoutSenderNames::readSenderSetFromBuffer(const char* buffer, std::set<std:
 		SenderNames.erase (SenderNames.begin(), SenderNames.end() );
 	}
 
-	char name[SpoutMaxSenderNameLen]={};		// char array to test for nulls
+	// char array to test for nulls
+	char name[SpoutMaxSenderNameLen]={};
 	int i = 0;
 	do {
 		// the actual string retrieved from shared memory should terminate
@@ -1077,14 +1080,16 @@ void spoutSenderNames::readSenderSetFromBuffer(const char* buffer, std::set<std:
 		// At the end of the map there will be a null in the data.
 		// Must use a character array to ensure testing for null.
 		strncpy_s(name, buf, SpoutMaxSenderNameLen);
-		if(name[0] > 0) {
+		// Cast to unsigned char to allow for non-ASCII characters
+		// https://github.com/leadedge/Spout2/pull/141
+		if((unsigned char)name[0] > 0) {
 			// insert name into set
 			SenderNames.insert(&name[0]);
 		}
 		// increment by 256 bytes for the next name
 		buf += SpoutMaxSenderNameLen;
 		i++;
-	} while (name[0] > 0 && i < maxSenders); // maxSenders has to be passed because this function is static
+	} while ((unsigned char)name[0] > 0 && i < maxSenders); // maxSenders has to be passed because this function is static
 
 }
 

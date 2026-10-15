@@ -10,6 +10,7 @@
 //	17.10.19 - Clean up for DirectX methods
 //	13.10.20 - Clean up unused variables
 //	20.10.20 - Clean up std::chrono debugging
+//	27.01.26 - Clean up for host detection
 //
 
 #pragma once
@@ -34,7 +35,7 @@
 //<==================== VS-START ====================>
 #include "dshowutil.h"
 
-// we need a LPCTSTR for the NAME() makros in debug mode
+// we need a LPCTSTR for the NAME() macros in debug mode
 #define SPOUTCAMNAME "SpoutCam"
 
 extern "C" {
@@ -191,7 +192,6 @@ public:
 
     HRESULT FillBuffer(IMediaSample *pms);
     HRESULT DecideBufferSize(IMemAllocator *pIMemAlloc, ALLOCATOR_PROPERTIES *pProperties);
-	// HRESULT GetMediaType(CMediaType *pmt);
     HRESULT CheckMediaType(const CMediaType *pMediaType);
     HRESULT GetMediaType(int iPosition, CMediaType *pmt);
     HRESULT SetMediaType(const CMediaType *pmt);
@@ -204,26 +204,35 @@ public:
 
 	// ============== IPC functions ==============
 	//
-	//	opengl/directx interop texture sharing
+	//	Directx D3D11 texture sharing
 	//
 	// SPOUTDX
 	spoutDX receiver;
 	
-	char g_SenderName[256];
-	char g_ActiveSender[256];    // The name of any Spout sender being received
-	char g_SenderStart[256];     // The starting sender name
-	bool bMemoryMode;            // true = memory, false = texture
-	bool bInvert;                // Flip vertically
+	char g_SenderName[256]{};
+	char g_ActiveSender[256]{};   // The name of any Spout sender being received
+	// LJ DEBUG
+	// char g_FirstActive[256]{};    // The first active sender detected at host start
+	char g_SenderStart[256]{};    // The starting sender name
+	std::string g_HostPath;       // Host full path
+	std::string g_HostName;       // Host name
+	std::string g_HostSenderName; // Host sender name
+	bool bMemoryMode;             // true = memory, false = texture
+	bool bInvert;                 // Flip vertically
 	bool bInitialized;
 	bool bDXinitialized;
 	bool bDXavailable;
 
-	unsigned int g_Width;			 // The global filter image width
-	unsigned int g_Height;			 // The global filter image height
+	unsigned int g_Width = 0;		 // The global filter image width
+	unsigned int g_Height = 0;		 // The global filter image height
 
-	DWORD dwFps;					// Fps from SpoutCamConfig
-	DWORD dwResolution;				// Resolution from SpoutCamConfig
-	int g_FrameTime;                // Frame time to use based on fps selection
+	DWORD dwFps = 3;				// Fps from SpoutCamSettings / Config
+	DWORD dwResolution = 0;			// Resolution from SpoutCamSettings / Config
+	DWORD dwMirror = 0;
+	DWORD dwSwap = 0;
+	DWORD dwFlip = 0;
+
+	int g_FrameTime = 333333;       // Frame time based on fps selection (30fps default)
 	TIMECAPS g_caps;                // Timer capability for Sleep precision
 
 private:

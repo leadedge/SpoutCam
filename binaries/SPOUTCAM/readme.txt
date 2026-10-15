@@ -5,8 +5,9 @@ SpoutCam is a virtual webcam that is also a Spout receiver.
 
 SPOUTCAM SETTINGS
 
-A utility program "SpoutCamSettings" allows options to be selected for SpoutCam.
-SpoutCamSettings.exe, 64 bit build, must be copied to this folder,
+A utility program "SpoutCamSettings.exe" allows options to be selected for SpoutCam.
+Both SpoutCam32 and SpoutCam64 folders with the respective "ax" dll file must be in
+the same folder,
 
 RESOLUTION
 
@@ -19,12 +20,11 @@ The resolution of SpoutCam depends on :
 
 2) If any other fixed resolution has been selected, it will always be used whether the sender is started first or not.
 
-3) If no sender is running when SpoutCam starts and "Active sender" has been selected, the resolution is undefined, so the default 640x480 is used.
+3) If no sender is running when SpoutCam starts and "Active sender" has been selected, the resolution is undefined, so the default 1920x1080 is used.
 
 Some host programs don't accept arbitrary resolutions. If you have trouble, select a fixed resolution so that SpoutCam behaves more like a typical webcam.
 
 The final appearance depends on how the frames are fitted to the aspect ratio of the host webcam display window. They could be fitted to the width, height or stretched to fit, depending on the host.
-
 
 FRAME RATE
 
@@ -44,14 +44,35 @@ Swap   - swap red and blue - RGB<>BRG
 
 REGISTER
 
-If SpoutCam has not been registered, click the 'Register' button. This will register both 32 bit and 64 bit versions of SpoutCam.
-After confirmation of success, the button will show 'UnRegister'. Click 'Unregister' to remove SpoutCam from the system.
+If SpoutCam has not been registered, click the 'Register' button. 
+This will register both 32 bit and 64 bit versions of SpoutCam.
+After confirmation of success, the button will show 'UnRegister'.
+Click 'Unregister' to remove SpoutCam from the system.
 
-To update SpoutCam, click 'Unregister' and then 'Register' again. The new copy of Spoutcam will now be ready to use.
+To update SpoutCam, click 'Unregister' and then 'Register' again.
+The new copy of Spoutcam will now be ready to use.
 				
-You can also register SpoutCam manually. There are separate folders for 32 bit and 64 bit versions and you can install both on a 64 bit system. In each folder you will find "_register_run_as_admin.bat". RH click and "Run as Administrator" to register SpoutCam. 
+MANUAL REGISTRATION
+				
+You can also register SpoutCam manually. 
+There are separate folders for 32 bit and 64 bit versions.
+You can install both on a 64 bit system. 
 
-Not all applications support virtual webcams and SpoutCam might not show up for some of them. If you have problems, you can un-register SpoutCam and Register again at any time.
+In the SpoutCam64 folder you will find : _register64_admin.bat
+and in the SpoutCam32 folder you will find : _register32_admin.bat
+	
+Run the appropriate batch file for options to register, un-register or re-register SpoutCam.
+
+ 1 - Register
+ 2 - Un-register
+ 3 - Re-register
+ Enter to cancel
+
+The batch file requires administrator privileges. Either right click and "Run as administrator"
+or the script will elevate to administrator privileges
+
+Not all applications support virtual webcams and SpoutCam might not show up for some of them.
+If you have problems, you can un-register SpoutCam and Register again at any time.
 
 SPOUTCAM PROPERTIES
 

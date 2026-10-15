@@ -10,7 +10,7 @@
 	to the frames being sent by the Sender
 	Currently there is no way to change the frame size
 	after the filter has been loaded. If there is no Sender, 
-	the default is 640x480 with a noise image
+	the default is 1920x1080 with a noise image
 
 	Copyright 2013-2026 Lynn Jarvis - spout@zeal.co
 
@@ -328,6 +328,22 @@
 	15.01.26   FillBuffer - prevent retries on failure to initialize DirectX
 	18.01.26   SpoutCopy - optimize rgba2rgbResample (x2 speed gain)
 	23.01.26   Update Version.h - Vers 2.036
+	27.01.26   Detect the host application at start, save host path and name
+			   1920x1080 default starting resolution instead of 640x480
+			   If the host is the active sender in FillBuffer,
+			   switch to the next up in the list if more than one sender
+			   To avoid GetVersionEx deprecated warning -
+			     Change base classes wxutil.cpp to use Version helpers
+			     Change dllentry.cpp DLL_PROCESS_ATTACH
+			     default to NT (modern Windows) since pre-NT is obsolete
+			   Change Properties dialog font from "Ms Shell Dlg" to "Segoe UI"
+			   Reduce spacing of groups and height of dialog
+			   Centre dialog on desktop
+	03.02.26   Change to AllocConsole instead of OpenConsole
+			   due to problems with TouchDesigner
+	12.10.26 - Update SpoutDX source files
+	15.10.26 - Update Version.h and cam.rc - version 2.037
+			   Rebuild x86/x64 - version 2.037 for Release 2.007.018
 
 
 */
@@ -337,7 +353,7 @@
 
 #include "cam.h"
 
-// This is just a fast rand so that the static image isn't too slow for higher resolutions
+// Fast rand so that the static image isn't too slow for higher resolutions.
 // Based on Marsaglia's xorshift generator (http://www.jstatsoft.org/v08/i14/paper)
 // and copied from (https://excamera.com/sphinx/article-xorshift.html)
 static uint32_t seed = 7; // 100% random seed value
@@ -356,13 +372,19 @@ CUnknown * WINAPI CVCam::CreateInstance(LPUNKNOWN lpunk, HRESULT *phr)
 {
     ASSERT(phr);
 
-	// Console window
-	// OpenSpoutConsole(); // Empty console
+	// Empty console for debugging
+	/*
+	if (AllocConsole()) {
+		FILE* fp = nullptr;
+		const errno_t err = freopen_s(&fp, "CONOUT$", "w", stdout);
+	}
+	*/
+
 	// EnableSpoutLog(); // Show error logs
 	// EnableSpoutLogFile("SpoutCamDX_2022");
-	// SpoutLog("SpoutCamDX ~ Vers 2.036\n");
+	// SpoutLog("SpoutCamDX ~ Vers 2.037\n");
 
-	// For clear options dialog for scaled display
+	// For clear options dialog for scaled displays
 	SetProcessDPIAware();
 
     CUnknown *punk = new CVCam(lpunk, phr);
@@ -573,7 +595,7 @@ HRESULT CVCamStream::put_Settings(DWORD dwFps, DWORD dwResolution, DWORD dwMirro
 	receiver.SetSwap(dwSwap > 0);
 
 	// Flip is true by default for windows bitmap
-	// so false will appear inverted
+	// so that false will appear inverted
 	bInvert = !(dwFlip > 0);
 
 	return GetMediaType(0, &m_mt);
@@ -592,14 +614,27 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 	bMemoryMode		= false; // Default mode is texture, true means memoryshare
 	bInvert         = true;  // Flip vertically
 	bInitialized	= false; // Spoutcam receiver
-	g_Width			= 640;	 // give it an initial size - this will be changed if a sender is running at start
-	g_Height		= 480;
 	g_SenderName[0] = 0;
 	g_ActiveSender[0] = 0;
 	g_SenderStart[0] = 0;
+	// give it an initial size
+	// this is changed if the selected resolution is 0
+	// and a sender is running at start
+	g_Width			= 1920;
+	g_Height		= 1080;
 
-	// Testing
-	// OpenSpoutConsole();
+	// Get the host executable name
+	DWORD pid = GetCurrentProcessId();
+	HANDLE hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_VM_READ, FALSE, pid);
+	char hostpath[MAX_PATH]{};
+	if (hProcess != NULL) {
+		if (GetModuleFileNameExA(hProcess, NULL, hostpath, MAX_PATH)) {
+			g_HostPath = hostpath; // Full path of the host program
+			g_HostName = GetName(g_HostPath); // Remove path and extension
+			g_HostName = g_HostName.substr(0, g_HostName.rfind("."));
+		}
+		CloseHandle(hProcess);
+	}
 
 	// Maximum precision of timeGetTime used in FillBuffer
 	timeGetDevCaps(&g_caps, sizeof(g_caps));
@@ -621,10 +656,10 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 		dwFps = 3;
 
 	//		o Resolution
-	//			Sender			0
+	//			Sender			0  (default)
 	//			320 x 240		1
 	//			640 x 360		2
-	//			640 x 480		3 (default if no sender)
+	//			640 x 480		3
 	//			800 x 600		4
 	//			1024 x 720		5	
 	//			1024 x 768		6
@@ -646,18 +681,14 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 	//
 
 	// Mirror image
-	DWORD dwMirror = 0;
 	ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "mirror", &dwMirror);
 
 	// RGB <> BGR
-	DWORD dwSwap = 0;
 	ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "swap", &dwSwap);
 
 	// Flip image
 	// Default is flipped due to upside down Windows bitmap
 	// If set false, the result comes out inverted
-	// bInvert = false; 
-	DWORD dwFlip = 0;
 	ReadDwordFromRegistry(HKEY_CURRENT_USER, "Software\\Leading Edge\\SpoutCam", "flip", &dwFlip);
 
 	//
@@ -680,7 +711,7 @@ CVCamStream::CVCamStream(HRESULT *phr, CVCam *pParent, LPCWSTR pPinName) :
 	printf("dwSwap       = %d\n", dwSwap);
 	printf("senderstart  [%s]\n", g_SenderStart);
 	*/
-
+	
 	//<==================== VS-START ====================>
 	// Now always the new function put_Settings is called, which in turn calls
 	// SetFps and SetResolution. Dealing with resolution 0 (Sender) was moved to
@@ -730,7 +761,6 @@ void CVCamStream::SetFps(DWORD dwFps)
 
 void CVCamStream::SetResolution(DWORD dwResolution)
 {
-
 	switch(dwResolution) {
 
 		//<==================== VS-START ====================>
@@ -976,6 +1006,61 @@ HRESULT CVCamStream::FillBuffer(IMediaSample * pms) {
 		goto ShowStatic;
 	}
 
+	// Get the host sender name if running
+	if (g_HostSenderName.empty()) {
+		int nsenders = receiver.GetSenderCount();
+		if (nsenders > 0) {
+			SharedTextureInfo info{};
+			std::vector<std::string> list = receiver.GetSenderList();
+			if (list.size() > 0) {
+				for (int i=0; i<nsenders; i++) {
+					if (receiver.sendernames.getSharedInfo(list[i].c_str(), &info)) {
+						std::string senderpath = (char*)info.description;
+						if (!senderpath.empty()) {
+							// Is the host path in the description?
+							if (g_HostPath == senderpath) {
+								g_HostSenderName = list[i];
+								break;
+							}
+						}
+						else {
+							// The description has no path
+							// Is the executable name in the sender name ?
+							if(strstr(list[i].c_str(), g_HostName.c_str()) > 0) {
+								g_HostSenderName = list[i];
+								break;
+							}
+						}
+					}
+				}
+			} // endif list size > 0
+		} // endif nsenders > 0
+	} // endif get host sender name
+
+	// Is the Host application the active sender ?
+	if(!g_HostSenderName.empty() && g_HostSenderName == g_ActiveSender) {
+
+		if(bInitialized) ReleaseCamReceiver();
+
+		// Is there more than one sender ?
+		int nsenders = receiver.GetSenderCount();
+		if (nsenders > 1) {
+			// From last to first in the list,
+			// set the sender as active if it is not the host sender
+			std::vector<std::string> list = receiver.GetSenderList();
+			for (int i=nsenders-1; i>=0; i--) {
+				if (list[i] != g_HostSenderName) {
+					receiver.SetActiveSender(list[i].c_str());
+					break;
+				}
+			}
+		} // endif more than 1 sender
+		else {
+			// Only the host sender is running
+			goto ShowStatic;
+		}
+	} // Endif host is active
+
 	// DirectX is initialized OK
 	// Get BGR pixels from the sender DirectX shared texture
 	// SSE3 optimization if available
@@ -983,7 +1068,11 @@ HRESULT CVCamStream::FillBuffer(IMediaSample * pms) {
 	// ReceiveImage handles sender detection, connection and copy of pixels
 	// bRGB    : set true for the BGR pixel data (i.e. not RGBA/BGRA)
 	// bInvert : SpoutCamSettings or properites dialog user setting "flip"
+	// 3.5 - 4.5 msec at 1920x1080
+	// 60fps = 16.667 msec per frame
+	// 30fps = 33.333 msec per frame
 	if (receiver.ReceiveImage(pData, g_Width, g_Height, true, bInvert)) {
+
 		if (receiver.IsUpdated()) {
 			// The sender has changed
 			if (strcmp(g_SenderName, receiver.GetSenderName()) != 0) {
@@ -1073,8 +1162,8 @@ HRESULT CVCamStream::GetMediaType(int iPosition, CMediaType *pmt)
 
  	// Allow for default
 	if(g_Width == 0 || g_Height == 0) {
-		width  = 640;
-		height = 480;
+		width  = 1920;
+		height = 1080;
 	}
 	else {
 		// as per Spout sender received
@@ -1096,7 +1185,7 @@ HRESULT CVCamStream::GetMediaType(int iPosition, CMediaType *pmt)
 	// 15fps =  666667
 	// 30fps =  333333
 	// 60fps =  166667
-	pvi->AvgTimePerFrame = g_FrameTime; // From SpoutCamConfig - 30fps default
+	pvi->AvgTimePerFrame = g_FrameTime; // From SpoutCamSettings / Config - 30fps default
 
     SetRectEmpty(&(pvi->rcSource)); // we want the whole image area rendered.
     SetRectEmpty(&(pvi->rcTarget)); // no particular destination rectangle

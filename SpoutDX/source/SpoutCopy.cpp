@@ -86,13 +86,18 @@
 	04.01.26 - Optimize memcpy_sse2
 	08.01.26 - rgba2rgba - copy the whole RGBA image if stride = width*4
 	16.01.26 - rgba2rgb - change m_bSSE3 requirement to m_bSSSE3 for rgba_to_rgb_sse3
-	18.01.26 - Optimize rgba2rgbResample.
-			 - 2.3 msec 1920x1080 > 1280 x 1024 (x2 speed gain)
-			 -   Avoid floating-point floor in inner loop
-			 -   Precompute mapping tables
-			 -   Precompute source row offset
-			 - Remove rgba2bgrResample
-	20.01.26 - CheckSSE() cleanup, header file claanup
+	18.01.26 - Optimize rgba2rgbResample. - Remove rgba2bgrResample
+	20.01.26 - CheckSSE() - conditional compile options for GNUC/MINGW32/MINGW64
+	28.06.26 - NOMINMAX define in SpoutUtils.h for std::min
+			   instead of min in rgba2rgbResample - PR #139
+	04.07.26 - Include <immintrin.h> instead of both
+			   <emmintrin.h> and <tmmintrin.h>
+	12.08.26 - memcpy_sse2 - braces around initial pointer check
+			   To avoid "misleading indentation" warning.
+	23.09.26 - SpoutCopy.h - #include <string.h> as per Microsoft docs
+			   instead of <cstring> for memcpy. Also covered by
+			   changes to SpoutUtils.h (included by SpoutCommon.h)
+	Version 2.007.018
 
 */
 
@@ -112,7 +117,6 @@ spoutCopy::spoutCopy() {
 	m_bSSSE3 = false;
 	CheckSSE(); // SSE available - sets m_bSSE2, m_bSSE3, m_bSSSE3
 }
-
 
 spoutCopy::~spoutCopy() {
 
@@ -282,8 +286,6 @@ void spoutCopy::ClearAlpha(unsigned char* src, unsigned int width, unsigned int 
 	}
 }
 
-
-
 //
 // Fast memcpy.
 //
@@ -305,8 +307,9 @@ void spoutCopy::ClearAlpha(unsigned char* src, unsigned int width, unsigned int 
 // SSE2 version of memcpy
 void spoutCopy::memcpy_sse2(void* dst, const void* src, size_t size) const
 {
-    if (!dst || !src || size == 0)
-        return;
+	if (!dst || !src || size == 0) {
+		return;
+	}
 
 	char* pDst = reinterpret_cast<char*>(dst);
     const char* pSrc = reinterpret_cast<const char*>(src);
@@ -1303,10 +1306,10 @@ void spoutCopy::rgba2rgbResample(const void* source, void* dest,
     const float y_ratio = float(sourceHeight)/float(destHeight);
 
     for (unsigned int j = 0; j < destWidth; j++)
-        xTable[j] = min((unsigned int)(j * x_ratio), sourceWidth - 1);
+        xTable[j] = std::min((unsigned int)(j * x_ratio), sourceWidth - 1);
 
     for (unsigned int i = 0; i < destHeight; i++)
-        yTable[i] = min((unsigned int)(i * y_ratio), sourceHeight - 1);
+        yTable[i] = std::min((unsigned int)(i * y_ratio), sourceHeight - 1);
 
     // Precompute source row offsets
     std::vector<unsigned int> rowOffset(destHeight);

@@ -50,10 +50,11 @@
 //	07.12.23 - Remove unused <d3d9.h> from header
 //	Version 2.007.013
 //	Version 2.007.014
-//	2.01.26	- Move includes to header. Review - update copyright year
+//	02.01.26	- Move includes to header. Review - update copyright year
+//	Version 2.007.018
+//
 //
 // ====================================================================================
-
 
 //
 // Class: SpoutSharedMemory

@@ -50,6 +50,19 @@ INT_PTR CSpoutCamProperties::OnReceiveMessage(HWND hwnd, UINT uMsg, WPARAM wPara
 
 		case WM_INITDIALOG:
 		{
+				// Centre the dialog on the desktop
+			RECT rc{};
+			HWND hParent = GetAncestor(hwnd, GA_ROOT);
+			GetWindowRect(hParent, &rc);
+			int dialogWidth = rc.right-rc.left;
+			int dialogHeight = rc.bottom-rc.top;
+			int xpos = (GetSystemMetrics(SM_CXSCREEN) - dialogWidth) / 2;
+			int	ypos = (GetSystemMetrics(SM_CYSCREEN) - dialogHeight) / 2;
+			SetWindowPos(hParent, NULL,
+				xpos, ypos, dialogWidth, dialogHeight, SWP_NOZORDER | SWP_NOSIZE);
+
+			// Give the main dialog a title instead of the default "Properties"
+			SetWindowTextA(hParent, "SpoutCam");
 			// Hyperlink hand cursor
 			cursorHand = LoadCursor(NULL, IDC_HAND);
 			SetClassLongPtr(GetDlgItem(hwnd, IDC_SPOUT_URL), GCLP_HCURSOR, (LONG_PTR)cursorHand);
@@ -232,14 +245,14 @@ HRESULT CSpoutCamProperties::OnActivate()
 		L"Active Sender",
 		L"320 x 240",
 		L"640 x 360",
-		L"640 x 480", // default if no sender
+		L"640 x 480",
 		L"800 x 600",
 		L"1024 x 720",
 		L"1024 x 768",
 		L"1280 x 720",
 		L"1280 x 960",
 		L"1280 x 1024",
-		L"1920 x 1080"
+		L"1920 x 1080" // default if no sender
 	};
 
 	WCHAR res[14];
@@ -335,7 +348,8 @@ HRESULT CSpoutCamProperties::OnDeactivate()
 	return S_OK;
 }
 
-//OnApplyChanges is called when the user commits the property changes by clicking the OK or Apply button.
+// OnApplyChanges is called when the user commits the property changes
+// by clicking the OK or Apply button.
 HRESULT CSpoutCamProperties::OnApplyChanges()
 {
 	TRACE("OnApplyChanges");

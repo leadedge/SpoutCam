@@ -5,7 +5,9 @@
 // Revisions
 //
 // 27.03.25	- Make version text darker
-//			  Increase dialog font size from 8 to 10   
+//			  Increase dialog font size from 8 to 10
+// 27.01.26 - Change font from "Ms Shell Dlg" to "Segoe UI"
+//			  Reduce spacing of groups and height of dialog
 //
 
 
@@ -20,27 +22,27 @@
 // to be the same as the current SpoutCamSettings dialog
 //
 LANGUAGE LANG_NEUTRAL, SUBLANG_NEUTRAL
-IDD_SPOUTCAMBOX DIALOG 0, 0, 100, 175
+IDD_SPOUTCAMBOX DIALOG 0, 0, 100, 165 // 175
 STYLE DS_CENTER | DS_SHELLFONT | WS_CHILD
-FONT 10, "Ms Shell Dlg"
+FONT 10, "Segoe UI" // 
 {
-	GROUPBOX        "Frame Rate (fps)", -1, 13, 7, 130, 32, 0, WS_EX_LEFT
-	COMBOBOX        IDC_FPS, 20, 19, 100, 100, WS_TABSTOP | CBS_DROPDOWN | CBS_HASSTRINGS, WS_EX_LEFT
+	GROUPBOX        "Frame Rate (fps)", -1,    13,  7, 130,  32, 0, WS_EX_LEFT
+	COMBOBOX        IDC_FPS,                   20, 19, 100, 100, WS_TABSTOP | CBS_DROPDOWN | CBS_HASSTRINGS, WS_EX_LEFT
 
-	GROUPBOX        "Starting Resolution", -1, 13, 44, 130, 32, 0, WS_EX_LEFT
-	COMBOBOX        IDC_RESOLUTION, 20, 56, 100, 120, WS_TABSTOP | CBS_DROPDOWN | CBS_HASSTRINGS, WS_EX_LEFT
+	GROUPBOX        "Starting Resolution", -1, 13, 40, 130,  32, 0, WS_EX_LEFT
+	COMBOBOX        IDC_RESOLUTION,            20, 52, 100, 120, WS_TABSTOP | CBS_DROPDOWN | CBS_HASSTRINGS, WS_EX_LEFT
 
-	GROUPBOX        "Starting Sender Name", -1, 13, 79, 130, 32, 0, WS_EX_LEFT
-	EDITTEXT        IDC_NAME, 20, 91, 100, 12, WS_TABSTOP | WS_EX_LEFT
+	GROUPBOX        "Starting Sender Name", -1, 13, 73, 130, 32, 0, WS_EX_LEFT
+	EDITTEXT        IDC_NAME,                   20, 84, 100, 12, WS_TABSTOP | WS_EX_LEFT
 
-	GROUPBOX        "Options", -1, 13, 116, 130, 28, 0, WS_EX_LEFT
-	AUTOCHECKBOX    "Mirror", IDC_MIRROR, 20, 128, 36, 8, 0, WS_EX_LEFT
-	AUTOCHECKBOX    "Flip", IDC_FLIP, 57, 128, 36, 8, 0, WS_EX_LEFT
-	AUTOCHECKBOX    "Swap", IDC_SWAP, 94, 128, 30, 8, 0, WS_EX_LEFT
+	GROUPBOX        "Options", -1,              13, 106, 130, 28, 0, WS_EX_LEFT
+	AUTOCHECKBOX    "Mirror", IDC_MIRROR,       20, 117,  36,  8, 0, WS_EX_LEFT
+	AUTOCHECKBOX    "Flip", IDC_FLIP,           57, 117,  36,  8, 0, WS_EX_LEFT
+	AUTOCHECKBOX    "Swap", IDC_SWAP,           94, 117,  30,  8, 0, WS_EX_LEFT
 
-	LTEXT           "", IDC_VERS, 15, 150, 50, 9, SS_LEFT, WS_EX_LEFT
-	CONTROL         "", IDC_SPOUT_URL, WC_BUTTON, BS_OWNERDRAW | BS_FLAT, 65, 150, 60, 10, WS_EX_TRANSPARENT
-	AUTOCHECKBOX    "Disable warnings", IDC_SILENT, 15, 162, 65, 8, 0, WS_EX_LEFT
+	LTEXT           "", IDC_VERS,               15, 140, 50, 9, SS_LEFT, WS_EX_LEFT
+	CONTROL         "", IDC_SPOUT_URL, WC_BUTTON, BS_OWNERDRAW | BS_FLAT, 70, 140, 60, 10, WS_EX_TRANSPARENT
+	AUTOCHECKBOX    "Disable warnings", IDC_SILENT, 15, 152, 65, 8, 0, WS_EX_LEFT
 
 }
 
